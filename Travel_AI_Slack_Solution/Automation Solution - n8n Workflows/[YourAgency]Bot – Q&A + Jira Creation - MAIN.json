@@ -119,7 +119,7 @@
         },
         {
             "parameters": {
-                "jsCode": "// Code (Prepare State Input)\n// ---------------------------\n// Loads conversation state from the DB row and latest message from Slack.\n\n// 1) Load current DB row (conversation state) from previous node\nconst dbRow = $json || {};\n\n// 2) Load latest Slack message from the trigger\n// Ensure your trigger node is named exactly \"Slack Trigger\"\n// const slack = $node[\"Slack Trigger\"].json || {};\nconst slack = $('When Executed by Another Workflow').item.json || {};\n\n// Helper: extract human-readable text from Slack payload\nfunction extractSlackText(msg) {\n  if (!msg) return '';\n  \n  // Plain text\n  if (msg.text && typeof msg.text === 'string') return msg.text.trim();\n  \n  // Rich Text / Block Kit\n  if (Array.isArray(msg.blocks) && msg.blocks.length > 0) {\n    const block = msg.blocks[0];\n    if (block.elements && block.elements.length > 0 && block.elements[0].elements) {\n      const textEl = block.elements[0].elements.find(e => e.type === 'text');\n      if (textEl && textEl.text) return textEl.text.trim();\n    }\n  }\n  return '';\n}\n\n// Helper: Safe Boolean Converter (Handles \"true\"/\"yes\" strings from DB)\nfunction safeBool(val) {\n  if (val === true || val === 'true' || val === 'Yes' || val === 'yes' || val === '1') return true;\n  if (val === false || val === 'false' || val === 'No' || val === 'no' || val === '0') return false;\n  return null; // Return null if undefined so we know it hasn't been asked yet\n}\n\n// 3) Hydrate answer state from DB columns\nlet answers = {\n  // Boolean Flags\n  deal_confirmed:     safeBool(dbRow.deal_confirmed),\n  resolved_now:       safeBool(dbRow.resolved_now),\n  urgent:             safeBool(dbRow.urgent),\n  solved_without_ops: safeBool(dbRow.solved_without_ops),\n  payment_involved:   safeBool(dbRow.payment_involved),\n  post_trip:          safeBool(dbRow.post_trip),\n  ops_required: safeBool(dbRow.ops_required),\n\n  // Text Fields\n  description:        dbRow.description || '',\n  action_taken:      dbRow.action_taken || '', // Stores answer for both Branch A & B\n  desired_action:    dbRow.desired_action || '',\n  refund_amount:      dbRow.refund_amount || ''\n};\n\n// 4) Determine current step\n// If DB has no step, assume we are at the start\nconst step =\n  dbRow.current_step && typeof dbRow.current_step === 'string'\n    ? dbRow.current_step\n    : 'awaiting_deal_confirmation';\n\n// 5) Get IDs (Thread, Channel, User, Group)\nconst thread_ts =\n  dbRow.thread_ts ||\n  slack.body?.event?.thread_ts ||\n  slack.thread_ts ||\n  slack.ts ||\n  null;\n\nconst channel =\n  dbRow.channel ||\n  slack.channel ||\n  slack.body?.event?.channel ||\n  null;\n\nconst user_id =\n  dbRow.user_id ||\n  slack.user ||\n  slack.user_id ||\n  slack.body?.event?.user ||\n  null;\n\nconst group_id = dbRow.group_id || null;\n\n// 6) Get latest message text\nconst messageText = extractSlackText(slack.body?.event || slack);\n\n// 7) Output\nreturn [{\n  thread_ts,\n  channel,\n  user_id,\n  group_id,\n  current_step: step,\n  answers,\n  message: messageText,\n}];"
+                "jsCode": "// Code (Prepare State Input)\n// ---------------------------\n// Loads conversation state from the DB row and latest message from Slack.\n\n// 1) Load current DB row (conversation state) from previous node\nconst dbRow = $json || {};\n\n// 2) Load latest Slack message from the trigger\n// Ensure your trigger node is named exactly \"Slack Trigger\"\n// const slack = $node[\"Slack Trigger\"].json || {};\nconst slack = $('When Executed by Another Workflow').item.json || {};\n\n// Helper: extract human-readable text from Slack payload\nfunction extractSlackText(msg) {\n  if (!msg) return '';\n  \n  // Plain text\n  if (msg.text && typeof msg.text === 'string') return msg.text.trim();\n  \n  // Rich Text / Block Kit\n  if (Array.isArray(msg.blocks) && msg.blocks.length > 0) {\n    const block = msg.blocks[0];\n    if (block.elements && block.elements.length > 0 && block.elements[0].elements) {\n      const textEl = block.elements[0].elements.find(e => e.type === 'text');\n      if (textEl && textEl.text) return textEl.text.trim();\n    }\n  }\n  return '';\n}\n\n// Helper: Safe Boolean Converter (Handles \"true\"/\"yes\" strings from DB)\nfunction safeBool(val) {\n  if (val === true || val === 'true' || val === 'Yes' || val === 'yes' || val === '1') return true;\n  if (val === false || val === 'false' || val === 'No' || val === 'no' || val === '0') return false;\n  return null; // Return null if undefined so we know it hasn't been asked yet\n}\n\n// 3) Hydrate answer state from DB columns\nlet answers = {\n  // Boolean Flags\n  deal_confirmed:     safeBool(dbRow.deal_confirmed),\n  resolved_now:       safeBool(dbRow.resolved_now),\n  urgent:             safeBool(dbRow.urgent),\n  solved_without_ops: safeBool(dbRow.solved_without_ops),\n  payment_involved:   safeBool(dbRow.payment_involved),\n  post_trip:          safeBool(dbRow.post_trip),\n  ops_required: safeBool(dbRow.ops_required),\n\n  // Text Fields\n  description:        dbRow.description || '',\n  action_taken:      dbRow.action_taken || '', // Stores answer for both Branch A & B\n  desired_action:    dbRow.desired_action || '',\n  refund_amount:      dbRow.refund_amount || ''\n};\n\n// 4) Determine current step\n// If DB has no step, assume we are at the start\n\n// 5b) Hydrate deal data cached from Workflow A\nlet dealData = {\n  lead_guest_name: dbRow.lead_guest_name || '',\n  checkin_date:    dbRow.checkin_date || '',\n  destination:     dbRow.destination || '',\n  number_of_people: dbRow.number_of_people || '',\n  deal_amount:     dbRow.deal_amount || '',\n};\n\nconst step =\n  dbRow.current_step && typeof dbRow.current_step === 'string'\n    ? dbRow.current_step\n    : 'awaiting_deal_confirmation';\n\n// 5) Get IDs (Thread, Channel, User, Group)\nconst thread_ts =\n  dbRow.thread_ts ||\n  slack.body?.event?.thread_ts ||\n  slack.thread_ts ||\n  slack.ts ||\n  null;\n\nconst channel =\n  dbRow.channel ||\n  slack.channel ||\n  slack.body?.event?.channel ||\n  null;\n\nconst user_id =\n  dbRow.user_id ||\n  slack.user ||\n  slack.user_id ||\n  slack.body?.event?.user ||\n  null;\n\nconst group_id = dbRow.group_id || null;\n\n// 6) Get latest message text\nconst messageText = extractSlackText(slack.body?.event || slack);\n\n// 7) Output\nreturn [{\n  thread_ts,\n  channel,\n  user_id,\n  group_id,\n  current_step: step,\n  answers,\n  message: messageText,\n  dealData,\n}];"
             },
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
@@ -659,52 +659,6 @@
         },
         {
             "parameters": {
-                "authentication": "appToken",
-                "resource": "deal",
-                "operation": "search",
-                "limit": 1,
-                "filterGroupsUi": {
-                    "filterGroupsValues": [
-                        {
-                            "filtersUi": {
-                                "filterValues": [
-                                    {
-                                        "propertyName": "group_id",
-                                        "value": "={{ $json.group_id }}"
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                },
-                "additionalFields": {
-                    "properties": [
-                        "lead_guest_name",
-                        "checkin_date",
-                        "destination",
-                        "number_of_people",
-                        "group_id",
-                        "amount"
-                    ]
-                }
-            },
-            "type": "n8n-nodes-base.hubspot",
-            "typeVersion": 2.2,
-            "position": [
-                1696,
-                0
-            ],
-            "id": "f4f1ab3d-72b4-4531-991b-3f946ff37601",
-            "name": "Search for deals",
-            "credentials": {
-                "hubspotAppToken": {
-                    "id": "[YOUR_CREDENTIAL_ID]",
-                    "name": "HubSpot App Token account [Your Agency]"
-                }
-            }
-        },
-        {
-            "parameters": {
                 "modelId": {
                     "__rl": true,
                     "value": "gpt-5.1",
@@ -718,7 +672,7 @@
                             "content": "You format Jira ticket descriptions.\n\nOutput MUST follow this EXACT structure using Jira wiki headings:\n\nh1. Issue Summary\n<one-sentence summary of the issue>\n\nh2. Booking Details\nGroup ID: <value>\nLead guest name: <value>\nParty size: <value>\nAccommodation: <value>\nCheck-in date: <value>\n\nh2. Triage Notes\nUrgency: <Urgent / Not urgent> - <short reason>\nResolution status: <Resolved / Not resolved / In progress> - <short status note>\nActions already taken: <sentence or short paragraph>\nExpected / desired solution: <sentence or short paragraph>\nPayment / refund: <describe if payment/refund involved and amount refunded, if any>\nPost-trip tracking: <Yes/No and short note if it should be tracked as post-trip>\n\nRules:\n- DO NOT use numbered lists or lettered lists at all (no \"1.\", \"2.\", \"a.\", \"b.\").\n- DO NOT wrap the answer in quotes or code blocks.\n- DO NOT add any extra sections, explanations, or labels.\n- Only return the final Jira description text in the format above.\n"
                         },
                         {
-                            "content": "=Customer issue description: {{ $('Get row(s)').item.json.description }}\nUrgent on-trip issue: {{ $('Get row(s)').item.json.urgent }}\nResolved now: {{ $('Get row(s)').item.json.resolved_now }}\nPayment involved: {{ $('Get row(s)').item.json.payment_involved }}\nRefund amount: {{ $('Get row(s)').item.json.refund_amount }}\nPost-trip issue: {{ $('Code (Decide Next Step)').item.json.createTickets.post_trip }}\n\nGroup ID: {{ $json.properties.group_id }}\nLead guest name: {{ $json.properties.lead_guest_name }}\nParty size: {{ $json.properties.number_of_people }}\nAccommodation: {{ $json.properties.destination }}\nCheck-in date: {{ $json.properties.checkin_date }}\n"
+                            "content": "=Customer issue description: {{ $('Get row(s)').item.json.description }}\nUrgent on-trip issue: {{ $('Get row(s)').item.json.urgent }}\nResolved now: {{ $('Get row(s)').item.json.resolved_now }}\nPayment involved: {{ $('Get row(s)').item.json.payment_involved }}\nRefund amount: {{ $('Get row(s)').item.json.refund_amount }}\nPost-trip issue: {{ $('Code (Decide Next Step)').item.json.createTickets.post_trip }}\n\nGroup ID: {{ $('Get row(s)').item.json.group_id }}\nLead guest name: {{ $('Get row(s)').item.json.lead_guest_name }}\nParty size: {{ $('Get row(s)').item.json.number_of_people }}\nAccommodation: {{ $('Get row(s)').item.json.destination }}\nCheck-in date: {{ $('Get row(s)').item.json.checkin_date }}\n"
                         }
                     ]
                 },
@@ -850,7 +804,7 @@
                     "mode": "list",
                     "cachedResultName": "[your-support-channel]"
                 },
-                "text": "=🚨 *New Urgent Customer Issue*\n\n*Issue Title:* {{ $('Jira - Create CS Ticket').item.json.key }}: {{ $('Code (Prepare State Input)').item.json.answers.description }}\n\n*Deal Details:* {{ $('Search for deals').item.json.properties.lead_guest_name }} @ {{ $('Search for deals').item.json.properties.destination }}\n(Group: {{ $('Search for deals').item.json.properties.group_id }})\n\n*Context & Status:*\n{{ $json.output[0].content[0].text }}\n\n👉 <https://[YOUR_JIRA_DOMAIN].atlassian.net/browse/{{ $('Jira - Create CS Ticket').item.json.key }}|View Jira Ticket>\n👉 <{{ $('Search for deals').item.json.url }}|Open in HubSpot>",
+                "text": "=🚨 *New Urgent Customer Issue*\n\n*Issue Title:* {{ $('Jira - Create CS Ticket').item.json.key }}: {{ $('Code (Prepare State Input)').item.json.answers.description }}\n\n*Deal Details:* {{ $('Get row(s)').item.json.lead_guest_name }} @ {{ $('Get row(s)').item.json.destination }}\n(Group: {{ $('Get row(s)').item.json.group_id }})\n\n*Context & Status:*\n{{ $json.output[0].content[0].text }}\n\n👉 <https://[YOUR_JIRA_DOMAIN].atlassian.net/browse/{{ $('Jira - Create CS Ticket').item.json.key }}|View Jira Ticket>\n👉 <{{ $('Get row(s)').item.json.deal_url || '#' }}|Open in HubSpot>",
                 "otherOptions": {
                     "includeLinkToWorkflow": false
                 }
@@ -917,6 +871,33 @@
                     "name": "Slack account [Your Agency]"
                 }
             }
+        },
+        {
+            "parameters": {
+                "operation": "deleteByFilter",
+                "dataTableId": {
+                    "__rl": true,
+                    "value": "[YOUR_DATA_TABLE_ID]",
+                    "mode": "list",
+                    "cachedResultName": "conversation_state"
+                },
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "thread_ts",
+                            "keyValue": "={{ $('Code (Decide Next Step)').item.json.thread_ts }}"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.dataTable",
+            "typeVersion": 1,
+            "position": [
+                2496,
+                100
+            ],
+            "id": "cleanup-completed-state",
+            "name": "Cleanup conversation state"
         }
     ],
     "pinData": {},
@@ -1014,7 +995,7 @@
             "main": [
                 [
                     {
-                        "node": "Search for deals",
+                        "node": "Message a model",
                         "type": "main",
                         "index": 0
                     }
@@ -1046,17 +1027,6 @@
                 [
                     {
                         "node": "IF – Ticket is Post Trip?",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "Search for deals": {
-            "main": [
-                [
-                    {
-                        "node": "Message a model",
                         "type": "main",
                         "index": 0
                     }
@@ -1123,6 +1093,11 @@
                 [
                     {
                         "node": "IF - Validate Urgency",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Cleanup conversation state",
                         "type": "main",
                         "index": 0
                     }

@@ -137,7 +137,12 @@
                         "user_id": "={{ $json.message.bot_profile.user_id }}",
                         "group_id": "={{ $('Search for deals').item.json.properties.group_id }}",
                         "current_step": "awaiting_deal_confirmation",
-                        "answers": "'{}'::jsonb"
+                        "answers": "'{}'::jsonb",
+                        "lead_guest_name": "={{ $('Search for deals').item.json.properties.lead_guest_name }}",
+                        "checkin_date": "={{ $('Search for deals').item.json.properties.checkin_date }}",
+                        "destination": "={{ $('Search for deals').item.json.properties.destination }}",
+                        "number_of_people": "={{ $('Search for deals').item.json.properties.number_of_people }}",
+                        "deal_amount": "={{ $('Search for deals').item.json.properties.amount }}"
                     },
                     "matchingColumns": [],
                     "schema": [
@@ -194,6 +199,56 @@
                         {
                             "id": "answers",
                             "displayName": "answers",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "lead_guest_name",
+                            "displayName": "lead_guest_name",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "checkin_date",
+                            "displayName": "checkin_date",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "destination",
+                            "displayName": "destination",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "number_of_people",
+                            "displayName": "number_of_people",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "deal_amount",
+                            "displayName": "deal_amount",
                             "required": false,
                             "defaultMatch": false,
                             "display": true,
