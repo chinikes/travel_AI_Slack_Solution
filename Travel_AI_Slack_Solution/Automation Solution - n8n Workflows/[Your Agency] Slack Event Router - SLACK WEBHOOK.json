@@ -1,299 +1,299 @@
 {
-  "name": "[Your Agency] Slack Event Router - SLACK WEBHOOK",
-  "nodes": [
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "4f5a52e2-1a0a-483b-aee1-003f603edc9b",
-              "leftValue": "={{ $json.user }}",
-              "rightValue": "=B0936LFT8HE",
-              "operator": {
-                "type": "string",
-                "operation": "notEquals"
-              }
-            },
-            {
-              "id": "3311a822-3785-4f47-b033-7fe213e03365",
-              "leftValue": "={{ $json.text }}",
-              "rightValue": "\"Sorry, I don't have context\"",
-              "operator": {
-                "type": "string",
-                "operation": "notContains"
-              }
-            },
-            {
-              "id": "b9845a7c-87c0-444f-a102-baa77cf5b221",
-              "leftValue": "={{ $json.bot_id }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "empty",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        560,
-        -64
-      ],
-      "id": "7b267cc8-f4ea-4e41-838d-8f97ff1076e6",
-      "name": "IF - Filter Out Bot Messages"
-    },
-    {
-      "parameters": {
-        "rules": {
-          "values": [
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.thread_ts }}",
-                    "rightValue": "app_mention",
-                    "operator": {
-                      "type": "string",
-                      "operation": "empty",
-                      "singleValue": true
+    "name": "[Your Agency] Slack Event Router - SLACK WEBHOOK",
+    "nodes": [
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
                     },
-                    "id": "1a54e729-c240-493d-9096-b5b35540ee65"
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "App Mention"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
+                    "conditions": [
+                        {
+                            "id": "4f5a52e2-1a0a-483b-aee1-003f603edc9b",
+                            "leftValue": "={{ $json.user }}",
+                            "rightValue": "=[YOUR_BOT_USER_ID]",
+                            "operator": {
+                                "type": "string",
+                                "operation": "notEquals"
+                            }
+                        },
+                        {
+                            "id": "3311a822-3785-4f47-b033-7fe213e03365",
+                            "leftValue": "={{ $json.text }}",
+                            "rightValue": "\"Sorry, I don't have context\"",
+                            "operator": {
+                                "type": "string",
+                                "operation": "notContains"
+                            }
+                        },
+                        {
+                            "id": "b9845a7c-87c0-444f-a102-baa77cf5b221",
+                            "leftValue": "={{ $json.bot_id }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "string",
+                                "operation": "empty",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
                 },
-                "conditions": [
-                  {
-                    "id": "db72b7d9-ee99-437e-8892-3f96866b43b3",
-                    "leftValue": "={{ $json.thread_ts }}",
-                    "rightValue": "",
-                    "operator": {
-                      "type": "string",
-                      "operation": "notEmpty",
-                      "singleValue": true
-                    }
-                  }
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                560,
+                -64
+            ],
+            "id": "7b267cc8-f4ea-4e41-838d-8f97ff1076e6",
+            "name": "IF - Filter Out Bot Messages"
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "values": [
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 2
+                                },
+                                "conditions": [
+                                    {
+                                        "leftValue": "={{ $json.thread_ts }}",
+                                        "rightValue": "app_mention",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "empty",
+                                            "singleValue": true
+                                        },
+                                        "id": "1a54e729-c240-493d-9096-b5b35540ee65"
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "App Mention"
+                        },
+                        {
+                            "conditions": {
+                                "options": {
+                                    "caseSensitive": true,
+                                    "leftValue": "",
+                                    "typeValidation": "strict",
+                                    "version": 2
+                                },
+                                "conditions": [
+                                    {
+                                        "id": "db72b7d9-ee99-437e-8892-3f96866b43b3",
+                                        "leftValue": "={{ $json.thread_ts }}",
+                                        "rightValue": "",
+                                        "operator": {
+                                            "type": "string",
+                                            "operation": "notEmpty",
+                                            "singleValue": true
+                                        }
+                                    }
+                                ],
+                                "combinator": "and"
+                            },
+                            "renameOutput": true,
+                            "outputKey": "Thread Reply"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 3.3,
+            "position": [
+                832,
+                -96
+            ],
+            "id": "db4233f8-f375-4080-901b-30fbc889f2b0",
+            "name": "Switch"
+        },
+        {
+            "parameters": {
+                "workflowId": {
+                    "__rl": true,
+                    "value": "[YOUR_WORKFLOW_ID]",
+                    "mode": "list",
+                    "cachedResultUrl": "",
+                    "cachedResultName": "[Your Agency] Workflow A - \"The Fetcher\""
+                },
+                "workflowInputs": {
+                    "mappingMode": "defineBelow",
+                    "value": {},
+                    "matchingColumns": [],
+                    "schema": [],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": true
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1.3,
+            "position": [
+                1248,
+                -224
+            ],
+            "id": "437600d6-c820-4856-a801-a0ce2dd8fe01",
+            "name": "Call '[Your Agency] Workflow A - \"The Fetcher\"'"
+        },
+        {
+            "parameters": {
+                "workflowId": {
+                    "__rl": true,
+                    "value": "[YOUR_WORKFLOW_ID]",
+                    "mode": "list",
+                    "cachedResultUrl": "",
+                    "cachedResultName": "[YourAgency]Bot – Q&A + Jira Creation - MAIN"
+                },
+                "workflowInputs": {
+                    "mappingMode": "defineBelow",
+                    "value": {},
+                    "matchingColumns": [],
+                    "schema": [],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": true
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1.3,
+            "position": [
+                1248,
+                0
+            ],
+            "id": "08f8fc1e-2150-4dc0-ad99-b9ff198ba8c6",
+            "name": "Call '[YourAgency]Bot – Q&A + Jira Creation - MAIN'"
+        },
+        {
+            "parameters": {
+                "trigger": [
+                    "message"
                 ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Thread Reply"
+                "channelId": {
+                    "__rl": true,
+                    "value": "[YOUR_CHANNEL_ID]",
+                    "mode": "list",
+                    "cachedResultName": "[your-channel-name]"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.slackTrigger",
+            "typeVersion": 1,
+            "position": [
+                304,
+                -64
+            ],
+            "id": "661a1249-f338-415a-82d9-9680e3343d61",
+            "name": "Slack Trigger",
+            "webhookId": "[YOUR_WEBHOOK_ID]",
+            "credentials": {
+                "slackApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "Slack account [Your Agency]"
+                }
             }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.3,
-      "position": [
-        832,
-        -96
-      ],
-      "id": "db4233f8-f375-4080-901b-30fbc889f2b0",
-      "name": "Switch"
-    },
-    {
-      "parameters": {
-        "workflowId": {
-          "__rl": true,
-          "value": "uewEdukDhIftPRIE",
-          "mode": "list",
-          "cachedResultUrl": "/workflow/uewEdukDhIftPRIE",
-          "cachedResultName": "[Your Agency] Workflow A - \"The Fetcher\""
-        },
-        "workflowInputs": {
-          "mappingMode": "defineBelow",
-          "value": {},
-          "matchingColumns": [],
-          "schema": [],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.3,
-      "position": [
-        1248,
-        -224
-      ],
-      "id": "437600d6-c820-4856-a801-a0ce2dd8fe01",
-      "name": "Call '[Your Agency] Workflow A - \"The Fetcher\"'"
-    },
-    {
-      "parameters": {
-        "workflowId": {
-          "__rl": true,
-          "value": "hQsfa7dQH2NVdUm4",
-          "mode": "list",
-          "cachedResultUrl": "/workflow/hQsfa7dQH2NVdUm4",
-          "cachedResultName": "[YourAgency]Bot – Q&A + Jira Creation - MAIN"
-        },
-        "workflowInputs": {
-          "mappingMode": "defineBelow",
-          "value": {},
-          "matchingColumns": [],
-          "schema": [],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.3,
-      "position": [
-        1248,
-        0
-      ],
-      "id": "08f8fc1e-2150-4dc0-ad99-b9ff198ba8c6",
-      "name": "Call '[YourAgency]Bot – Q&A + Jira Creation - MAIN'"
-    },
-    {
-      "parameters": {
-        "trigger": [
-          "message"
-        ],
-        "channelId": {
-          "__rl": true,
-          "value": "C0A1W7L109Z",
-          "mode": "list",
-          "cachedResultName": "slackbottest"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.slackTrigger",
-      "typeVersion": 1,
-      "position": [
-        304,
-        -64
-      ],
-      "id": "661a1249-f338-415a-82d9-9680e3343d61",
-      "name": "Slack Trigger",
-      "webhookId": "01783660-0b72-4aff-b659-1c48211af13d",
-      "credentials": {
-        "slackApi": {
-          "id": "VLmNvog2RDL0uHdq",
-          "name": "Slack account [Your Agency]"
         }
-      }
-    }
-  ],
-  "pinData": {},
-  "connections": {
-    "IF - Filter Out Bot Messages": {
-      "main": [
-        [
-          {
-            "node": "Switch",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    ],
+    "pinData": {},
+    "connections": {
+        "IF - Filter Out Bot Messages": {
+            "main": [
+                [
+                    {
+                        "node": "Switch",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Switch": {
+            "main": [
+                [
+                    {
+                        "node": "Call '[Your Agency] Workflow A - \"The Fetcher\"'",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Call '[YourAgency]Bot – Q&A + Jira Creation - MAIN'",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Call '[Your Agency] Workflow A - \"The Fetcher\"'": {
+            "main": [
+                []
+            ]
+        },
+        "Slack Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "IF - Filter Out Bot Messages",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
     },
-    "Switch": {
-      "main": [
-        [
-          {
-            "node": "Call '[Your Agency] Workflow A - \"The Fetcher\"'",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Call '[YourAgency]Bot – Q&A + Jira Creation - MAIN'",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "active": true,
+    "settings": {
+        "executionOrder": "v1"
     },
-    "Call '[Your Agency] Workflow A - \"The Fetcher\"'": {
-      "main": [
-        []
-      ]
+    "versionId": "48d372c0-228c-414c-abc1-6c02954b5104",
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "[YOUR_N8N_INSTANCE_ID]"
     },
-    "Slack Trigger": {
-      "main": [
-        [
-          {
-            "node": "IF - Filter Out Bot Messages",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
-  },
-  "active": true,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "versionId": "48d372c0-228c-414c-abc1-6c02954b5104",
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "2ece1384e5347fda07017394bf7802b71181b6cdfba2a9f61ec56ad187c46c4c"
-  },
-  "id": "3h6PJuVGxQ86qSho",
-  "tags": [
-    {
-      "updatedAt": "2025-12-06T23:32:25.497Z",
-      "createdAt": "2025-12-06T23:32:25.497Z",
-      "id": "WnTamzdrzA46JnYr",
-      "name": "Jira"
-    },
-    {
-      "updatedAt": "2025-12-06T23:32:15.226Z",
-      "createdAt": "2025-12-06T23:32:15.226Z",
-      "id": "bczfTmhmIy3pyERj",
-      "name": "[Your Agency]"
-    },
-    {
-      "updatedAt": "2025-12-06T23:32:28.707Z",
-      "createdAt": "2025-12-06T23:32:28.707Z",
-      "id": "kkJYERRkgoiyvyY1",
-      "name": "chatGpt"
-    },
-    {
-      "updatedAt": "2025-12-06T23:32:32.325Z",
-      "createdAt": "2025-12-06T23:32:32.325Z",
-      "id": "tXaO5486yHLxYdL1",
-      "name": "Hubspot"
-    },
-    {
-      "updatedAt": "2025-12-06T23:32:23.447Z",
-      "createdAt": "2025-12-06T23:32:23.447Z",
-      "id": "wkHTcWxWCQniANdz",
-      "name": "Slack"
-    }
-  ]
+    "id": "[YOUR_WORKFLOW_ID]",
+    "tags": [
+        {
+            "updatedAt": "2025-12-06T23:32:25.497Z",
+            "createdAt": "2025-12-06T23:32:25.497Z",
+            "id": "WnTamzdrzA46JnYr",
+            "name": "Jira"
+        },
+        {
+            "updatedAt": "2025-12-06T23:32:15.226Z",
+            "createdAt": "2025-12-06T23:32:15.226Z",
+            "id": "bczfTmhmIy3pyERj",
+            "name": "[Your Agency]"
+        },
+        {
+            "updatedAt": "2025-12-06T23:32:28.707Z",
+            "createdAt": "2025-12-06T23:32:28.707Z",
+            "id": "kkJYERRkgoiyvyY1",
+            "name": "chatGpt"
+        },
+        {
+            "updatedAt": "2025-12-06T23:32:32.325Z",
+            "createdAt": "2025-12-06T23:32:32.325Z",
+            "id": "tXaO5486yHLxYdL1",
+            "name": "Hubspot"
+        },
+        {
+            "updatedAt": "2025-12-06T23:32:23.447Z",
+            "createdAt": "2025-12-06T23:32:23.447Z",
+            "id": "wkHTcWxWCQniANdz",
+            "name": "Slack"
+        }
+    ]
 }

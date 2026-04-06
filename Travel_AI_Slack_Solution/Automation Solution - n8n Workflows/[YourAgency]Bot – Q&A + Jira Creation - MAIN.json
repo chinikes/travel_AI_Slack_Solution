@@ -1,1156 +1,1144 @@
 {
-  "name": "[YourAgency]Bot – Q&A + Jira Creation - MAIN",
-  "nodes": [
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "db2f452e-d8f2-4fb8-bdc6-4a94cc84bb8d",
-              "leftValue": "={{ $json.thread_ts }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "notEmpty",
-                "singleValue": true
-              }
-            },
-            {
-              "id": "7ad4b807-4b2e-4f13-ab4d-fcea8fc49f0c",
-              "leftValue": "={{ $json.user }}",
-              "rightValue": "U0A0S9PP6R3",
-              "operator": {
-                "type": "string",
-                "operation": "notEquals"
-              }
-            },
-            {
-              "id": "d8257363-1172-4970-9ce2-455a80c7132e",
-              "leftValue": "={{ $json.bot_id }}",
-              "rightValue": "false",
-              "operator": {
-                "type": "string",
-                "operation": "empty",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        16,
-        -32
-      ],
-      "id": "60acf6f5-77da-40d8-82d0-2ec67a62ceb6",
-      "name": "If"
-    },
-    {
-      "parameters": {
-        "operation": "get",
-        "dataTableId": {
-          "__rl": true,
-          "value": "eC1LH9n07OR3RtcZ",
-          "mode": "list",
-          "cachedResultName": "conversation_state",
-          "cachedResultUrl": "/projects/pAa96UOa2sFCNDFA/datatables/eC1LH9n07OR3RtcZ"
-        },
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "thread_ts",
-              "keyValue": "={{ $json.thread_ts }}"
-            }
-          ]
-        },
-        "returnAll": true
-      },
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1,
-      "position": [
-        384,
-        -144
-      ],
-      "id": "12700ae7-1e80-493f-8fdd-3bca04e58023",
-      "name": "Get row(s)",
-      "alwaysOutputData": true
-    },
-    {
-      "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "C08EVH84492",
-          "mode": "list",
-          "cachedResultName": "all-agiledevsconsulting"
-        },
-        "text": "Sorry, I don’t have context for this thread",
-        "otherOptions": {
-          "thread_ts": {
-            "replyValues": {
-              "thread_ts": "={{ $('When Executed by Another Workflow').item.json.ts }}"
-            }
-          }
-        }
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [
-        400,
-        32
-      ],
-      "id": "497bad5f-0c2d-4206-99ff-eef8b1b6c8a8",
-      "name": "Send a message",
-      "webhookId": "5d02b5a1-7e46-4440-a44f-b05835e62b26",
-      "credentials": {
-        "slackOAuth2Api": {
-          "id": "g7qdbmt59MFiqW6S",
-          "name": "Slack account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Code (Prepare State Input)\n// ---------------------------\n// Loads conversation state from the DB row and latest message from Slack.\n\n// 1) Load current DB row (conversation state) from previous node\nconst dbRow = $json || {};\n\n// 2) Load latest Slack message from the trigger\n// Ensure your trigger node is named exactly \"Slack Trigger\"\n// const slack = $node[\"Slack Trigger\"].json || {};\nconst slack = $('When Executed by Another Workflow').item.json || {};\n\n// Helper: extract human-readable text from Slack payload\nfunction extractSlackText(msg) {\n  if (!msg) return '';\n  \n  // Plain text\n  if (msg.text && typeof msg.text === 'string') return msg.text.trim();\n  \n  // Rich Text / Block Kit\n  if (Array.isArray(msg.blocks) && msg.blocks.length > 0) {\n    const block = msg.blocks[0];\n    if (block.elements && block.elements.length > 0 && block.elements[0].elements) {\n      const textEl = block.elements[0].elements.find(e => e.type === 'text');\n      if (textEl && textEl.text) return textEl.text.trim();\n    }\n  }\n  return '';\n}\n\n// Helper: Safe Boolean Converter (Handles \"true\"/\"yes\" strings from DB)\nfunction safeBool(val) {\n  if (val === true || val === 'true' || val === 'Yes' || val === 'yes' || val === '1') return true;\n  if (val === false || val === 'false' || val === 'No' || val === 'no' || val === '0') return false;\n  return null; // Return null if undefined so we know it hasn't been asked yet\n}\n\n// 3) Hydrate answer state from DB columns\nlet answers = {\n  // Boolean Flags\n  deal_confirmed:     safeBool(dbRow.deal_confirmed),\n  resolved_now:       safeBool(dbRow.resolved_now),\n  urgent:             safeBool(dbRow.urgent),\n  solved_without_ops: safeBool(dbRow.solved_without_ops),\n  payment_involved:   safeBool(dbRow.payment_involved),\n  post_trip:          safeBool(dbRow.post_trip),\n  ops_required: safeBool(dbRow.ops_required),\n\n  // Text Fields\n  description:        dbRow.description || '',\n  action_taken:      dbRow.action_taken || '', // Stores answer for both Branch A & B\n  desired_action:    dbRow.desired_action || '',\n  refund_amount:      dbRow.refund_amount || ''\n};\n\n// 4) Determine current step\n// If DB has no step, assume we are at the start\nconst step =\n  dbRow.current_step && typeof dbRow.current_step === 'string'\n    ? dbRow.current_step\n    : 'awaiting_deal_confirmation';\n\n// 5) Get IDs (Thread, Channel, User, Group)\nconst thread_ts =\n  dbRow.thread_ts ||\n  slack.body?.event?.thread_ts ||\n  slack.thread_ts ||\n  slack.ts ||\n  null;\n\nconst channel =\n  dbRow.channel ||\n  slack.channel ||\n  slack.body?.event?.channel ||\n  null;\n\nconst user_id =\n  dbRow.user_id ||\n  slack.user ||\n  slack.user_id ||\n  slack.body?.event?.user ||\n  null;\n\nconst group_id = dbRow.group_id || null;\n\n// 6) Get latest message text\nconst messageText = extractSlackText(slack.body?.event || slack);\n\n// 7) Output\nreturn [{\n  thread_ts,\n  channel,\n  user_id,\n  group_id,\n  current_step: step,\n  answers,\n  message: messageText,\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        592,
-        -112
-      ],
-      "id": "68ae5605-8119-415c-ad71-ba4454928004",
-      "name": "Code (Prepare State Input)"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Code node: \"Decide Next Steps\"\n// Logic Flow:\n// 1. Verify Deal -> 2. Description -> 3. Resolved Now? (BRANCHING POINT)\n// BRANCH A (No/Active): 4A. Urgent? -> 5A. Actions Taken -> 6A. Desired Outcome -> Merge\n// BRANCH B (Yes/Resolved): 4B. Actions Taken -> 5B. Ops Help? -> Merge\n// MERGE: 7. Payment? -> (If Yes) 7.5 Amount -> 8. Post Trip\n\n// ---------- helpers ----------\nfunction parseYesNo(text) {\n  if (!text) return null;\n  const t = text.trim().toLowerCase();\n  if (/(^|\\b)(y|yes|yeah|yep|correct|true)/.test(t)) return true;\n  if (/(^|\\b)(n|no|nope|false|wrong)/.test(t))   return false;\n  return null;\n}\n\n// ---------- load state ----------\nconst item  = $json;\nlet step    = item.current_step || 'awaiting_deal_confirmation';\n// Use answers from previous node or init empty\nlet answers = item.answers || {};\nconst text  = (item.message || '').trim();\n\nlet next_question = null;\n\n// ---------- RESET COMMAND ----------\n// Allows user to restart if they get stuck\nif (text.toLowerCase() === 'reset' || text.toLowerCase() === 'restart') {\n  return [{\n    ...item,\n    current_step: 'awaiting_deal_confirmation',\n    next_question: '🔄 Reset. Is this the correct trip? (yes/no)',\n    answers: {}\n  }];\n}\n\n// ---------- STATE MACHINE ----------\nswitch (step) {\n\n  // STEP 1: Verify Deal\n  case 'awaiting_deal_confirmation': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = `Is this the correct trip (Group ID ${item.group_id})? (yes/no)`;\n    } else {\n      answers.deal_confirmed = yn;\n      if (!yn) {\n        step = 'completed';\n        next_question = null; // Exit flow\n      } else {\n        step = 'ask_description';\n        next_question = 'Got it. Please provide a summary/description of the issue.';\n      }\n    }\n    break;\n  }\n\n  // STEP 2: Description\n  case 'ask_description': {\n    if (!text) {\n      next_question = 'Please provide a summary/description of the issue.';\n    } else {\n      answers.description = text;\n      // Move to Logic Gate\n      step = 'ask_is_resolved';\n      next_question = 'Has the issue been resolved? (yes/no)';\n    }\n    break;\n  }\n\n  // STEP 3: The Logic Gate (Active vs Resolved)\n  case 'ask_is_resolved': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Is the issue currently resolved? Please answer yes or no.';\n    } else {\n      answers.resolved_now = yn;\n\n      if (yn === false) {\n        // --- BRANCH A: ACTIVE ISSUE (No) ---\n        step = 'ask_urgency';\n        next_question = 'Is this an urgent issue? (yes/no)';\n      } else {\n        // --- BRANCH B: RESOLVED ISSUE (Yes) ---\n        answers.urgent = false;\n        step = 'ask_actions_resolved';\n        next_question = 'What actions or steps were taken to resolve the issue?';\n      }\n    }\n    break;\n  }\n\n  // ================= BRANCH A (Active) =================\n\n  // STEP 4A: Urgency\n  case 'ask_urgency': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Is this an urgent issue? (yes/no)';\n    } else {\n      answers.urgent = yn;\n      step = 'ask_ops_required';\n      next_question = 'Does this issue require OPS support?';\n    }\n    break;\n  }\n\n  // STEP 4B: Ask Ops Support\n  case 'ask_ops_required': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Does this issue require OPS support?';\n    } else {\n      answers.ops_required = yn;\n      step = 'ask_actions_active';\n      next_question = 'What actions have been taken so far?';\n    }\n    break;\n  }\n\n  // STEP 5A: Actions Taken (Active)\n  case 'ask_actions_active': {\n    if (!text) {\n      next_question = 'What actions have been taken so far?';\n    } else {\n      answers.action_taken = text;\n      step = 'ask_desired_outcome';\n      next_question = 'What is the desired outcome or solution?';\n    }\n    break;\n  }\n\n  // STEP 6A: Desired Outcome (Active)\n  case 'ask_desired_outcome': {\n    if (!text) {\n      next_question = 'What is the desired outcome or solution?';\n    } else {\n      answers.desired_action = text;\n      // Merge to Finance\n      step = 'ask_payment';\n      next_question = 'Did this involve a payment on [Your Agency] or any refund/credits? (yes/no)';\n    }\n    break;\n  }\n\n  // ================= BRANCH B (Resolved) =================\n\n  // STEP 4B: Actions Taken (Resolved)\n  case 'ask_actions_resolved': {\n    if (!text) {\n      next_question = 'What actions were taken to resolve this?';\n    } else {\n      answers.action_taken = text;\n      step = 'ask_ops_help';\n      next_question = 'Did it require OPS help? (yes/no)';\n    }\n    break;\n  }\n\n  // STEP 5B: Ops Help\n  case 'ask_ops_help': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Did it require OPS help? (yes/no)';\n    } else {\n      // Logic: If \"Yes\" it required Ops -> solved_without_ops is FALSE\n      // If \"No\" it didn't require Ops -> solved_without_ops is TRUE\n      answers.solved_without_ops = !yn;\n      \n      // Merge to Finance\n      step = 'ask_payment';\n      next_question = 'Did this involve a payment on [Your Agency] or any refund/credits? (yes/no)';\n    }\n    break;\n  }\n\n  // ================= MERGE (Financials) =================\n\n  // STEP 7: Payment Check\n  case 'ask_payment': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Did this involve a payment on [Your Agency] or any refund/credits? (yes/no)';\n    } else {\n      answers.payment_involved = yn;\n      if (yn === true) {\n        // If YES, ask Amount\n        step = 'ask_refund_amount';\n        next_question = 'What was the exact amount refunded / payed? (e.g.,50 USD)';\n      } else {\n        // If NO, skip to Post Trip\n        step = 'ask_post_trip';\n        next_question = 'Should this also be tracked as a *post-trip complaint*? (yes/no)';\n      }\n    }\n    break;\n  }\n\n  // STEP 7.5: Refund Amount (Only if Payment involved)\n  case 'ask_refund_amount': {\n    if (!text) {\n      next_question = 'Please specify the exact amount refunded / payed (e.g.,50 USD).';\n    } else {\n      answers.refund_amount = text;\n      step = 'ask_post_trip';\n      next_question = 'Should this also be tracked as a *post-trip complaint*? (yes/no)';\n    }\n    break;\n  }\n\n  // STEP 8: Post Trip Tagging\n  case 'ask_post_trip': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Should this also be tracked as a *post-trip complaint*? (yes/no)';\n    } else {\n      answers.post_trip = yn;\n      step = 'completed';\n      next_question = null;\n    }\n    break;\n  }\n\n  default: {\n    step = 'completed';\n    next_question = null;\n    break;\n  }\n}\n\n// ... [Keep all the previous switch(step) logic exactly the same] ...\n\n// ---------- Logic for Ticket Flags & Jira Outcome ----------\n\nlet createTickets = {\n  cs_on_trip:  false,\n  ops_on_trip: false,\n  ops_refund:  false,\n  post_trip:   !!answers.post_trip,\n};\n\nlet jiraOutcome = '';\n\nif (step === 'completed' && answers.deal_confirmed) {\n\n  // 1. Mandatory CS Ticket\n  createTickets.cs_on_trip = true;\n\n  // 2. OPS Ticket Logic (Updated for new flow)\n  // If Unresolved: Check 'ops_required'\n  // If Resolved: Check if it was NOT solved without ops (meaning !solved_without_ops)\n  if ((!answers.resolved_now && answers.ops_required) || \n      (answers.resolved_now && answers.solved_without_ops === false)) {\n    createTickets.ops_on_trip = true;\n  }\n\n  // 3. Finance Ticket Logic\n  if (answers.payment_involved) {\n    createTickets.ops_refund = true;\n  }\n\n  // 4. Generate Jira Outcome Text (New Logic)\n   \n  if (!answers.resolved_now) {\n    // --- UNRESOLVED CASES ---\n    \n    if (answers.urgent) {\n      // URGENT\n      if (answers.ops_required && answers.payment_involved) {\n        jiraOutcome = 'Unresolved Urgent - Escalate to OPS - Refund Required';\n      } else {\n        // Assumes OPS required (based on your request structure)\n        jiraOutcome = 'Unresolved Urgent - Escalate to OPS';\n      }\n    } else {\n      // NOT URGENT\n      if (answers.ops_required && answers.payment_involved) {\n        jiraOutcome = 'Unresolved - Escalate to OPS - Refund Required';\n      } else {\n        jiraOutcome = 'Unresolved - Escalate to OPS';\n      }\n    }\n\n  } else {\n    // --- RESOLVED CASES ---\n    \n    if (answers.solved_without_ops) {\n      // Case A: Resolved WITHOUT Ops\n      if (answers.payment_involved) {\n        jiraOutcome = 'Resolved without OPS - Refund Required';\n      } else {\n        jiraOutcome = 'Resolved without OPS - No Refund Required';\n      }\n    } else {\n      // Case B: Resolved WITH Ops (solved_without_ops is false)\n      if (answers.payment_involved) {\n        jiraOutcome = 'Resolved by OPS - Refund Required';\n      } else {\n        jiraOutcome = 'Resolved by OPS - No Refund Required';\n      }\n    }\n  }\n\n} else if (step === 'completed' && !answers.deal_confirmed) {\n  jiraOutcome = 'Trip not confirmed – no tickets created';\n}\n\n// ... [Keep the return statement exactly the same] ...\n\n// ---------- RETURN ----------\nreturn [{\n  thread_ts:    item.thread_ts,\n  channel:      item.channel,\n  user_id:      item.user_id,\n  group_id:     item.group_id,\n  current_step: step,\n  answers,\n  next_question,\n  createTickets,\n  jiraOutcome,\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        800,
-        -112
-      ],
-      "id": "4b5de1ad-a89f-426d-9faf-e94d42e8b383",
-      "name": "Code (Decide Next Step)"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "8c164e14-60f8-49c9-b185-110979cb67e2",
-              "leftValue": "={{ $json.next_question }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "notEmpty",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1184,
-        -112
-      ],
-      "id": "9469a4bc-04ef-498a-b9a6-589b9c53b501",
-      "name": "IF node - \"Do we have a next question?\""
-    },
-    {
-      "parameters": {
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "={{ $('When Executed by Another Workflow').item.json.channel }}",
-          "mode": "id"
-        },
-        "text": "={{ $json.next_question }}",
-        "otherOptions": {
-          "includeLinkToWorkflow": false,
-          "thread_ts": {
-            "replyValues": {
-              "thread_ts": "={{ $('When Executed by Another Workflow').item.json.ts }}"
-            }
-          }
-        }
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [
-        1680,
-        -240
-      ],
-      "id": "a3db4153-a3c4-450c-86ec-67544fca2931",
-      "name": "Slack “Send message” (threaded reply)",
-      "webhookId": "159a5fe8-47e0-4c24-bd5f-e7bb6f9f6ede",
-      "credentials": {
-        "slackApi": {
-          "id": "VLmNvog2RDL0uHdq",
-          "name": "Slack account [Your Agency]"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "dataTableId": {
-          "__rl": true,
-          "value": "eC1LH9n07OR3RtcZ",
-          "mode": "list",
-          "cachedResultName": "conversation_state",
-          "cachedResultUrl": "/projects/pAa96UOa2sFCNDFA/datatables/eC1LH9n07OR3RtcZ"
-        },
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "thread_ts",
-              "keyValue": "={{ $('Code (Decide Next Step)').item.json.thread_ts }}"
-            }
-          ]
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "current_step": "={{ $('Code (Decide Next Step)').item.json.current_step }}",
-            "answers": "={{ JSON.stringify($json.answers) }}",
-            "thread_ts": "={{ $json.thread_ts }}",
-            "channel": "={{ $json.channel }}",
-            "user_id": "={{ $json.user_id }}",
-            "group_id": "={{ $json.group_id }}",
-            "deal_confirmed": "={{ $json.answers.deal_confirmed }}",
-            "urgent": "={{ $json.answers.urgent }}",
-            "solved_without_ops": "={{ $json.answers.solved_without_ops }}",
-            "resolved_now": "={{ $json.answers.resolved_now }}",
-            "payment_involved": "={{ $json.answers.payment_involved }}",
-            "post_trip": "={{ $json.answers.post_trip }}",
-            "cs_on_trip_ticket": "={{ $json.createTickets.cs_on_trip }}",
-            "ops_on_trip_ticket": "={{ $json.createTickets.ops_on_trip }}",
-            "ops_refund_ticket": "={{ $json.createTickets.ops_refund }}",
-            "jira_outcome": "={{ $json.jiraOutcome }}",
-            "description": "={{ $json.answers.description }}",
-            "action_taken": "={{ $json.answers.action_taken }}",
-            "desired_action": "={{ $json.answers.desired_action }}",
-            "refund_amount": "={{ $json.answers.refund_amount }}",
-            "ops_required": "={{ $json.answers.ops_required }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "thread_ts",
-              "displayName": "thread_ts",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "channel",
-              "displayName": "channel",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "user_id",
-              "displayName": "user_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "group_id",
-              "displayName": "group_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "current_step",
-              "displayName": "current_step",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "answers",
-              "displayName": "answers",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "deal_confirmed",
-              "displayName": "deal_confirmed",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "urgent",
-              "displayName": "urgent",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "solved_without_ops",
-              "displayName": "solved_without_ops",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "resolved_now",
-              "displayName": "resolved_now",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "payment_involved",
-              "displayName": "payment_involved",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "post_trip",
-              "displayName": "post_trip",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "jira_outcome",
-              "displayName": "jira_outcome",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "cs_on_trip_ticket",
-              "displayName": "cs_on_trip_ticket",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "ops_on_trip_ticket",
-              "displayName": "ops_on_trip_ticket",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "ops_refund_ticket",
-              "displayName": "ops_refund_ticket",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "description",
-              "displayName": "description",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "action_taken",
-              "displayName": "action_taken",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "desired_action",
-              "displayName": "desired_action",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "refund_amount",
-              "displayName": "refund_amount",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "ops_required",
-              "displayName": "ops_required",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "boolean",
-              "readOnly": false,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1,
-      "position": [
-        1040,
-        -272
-      ],
-      "id": "5d6970c0-e725-4233-b923-427c5a2d32cf",
-      "name": "Update row(s)"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "b45a2142-68cb-4887-a4ce-45f359699dbb",
-              "leftValue": "={{ $json.createTickets.cs_on_trip }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1424,
-        16
-      ],
-      "id": "f162fc63-faf1-463c-ae88-96a995e5b3c1",
-      "name": "IF – “Create CS ticket?”"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "8bbf399d-9558-41d9-8928-720fee253386",
-              "leftValue": "={{ $('Code (Decide Next Step)').item.json.createTickets.ops_on_trip }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1648,
-        176
-      ],
-      "id": "6eb6781c-b715-478f-ad1e-dcfb79597dd8",
-      "name": "IF – Create OPS on-trip?"
-    },
-    {
-      "parameters": {
-        "project": {
-          "__rl": true,
-          "value": "10069",
-          "mode": "list",
-          "cachedResultName": "[Your Agency] CS"
-        },
-        "issueType": {
-          "__rl": true,
-          "value": "10078",
-          "mode": "list",
-          "cachedResultName": "CS On-Trip Issue"
-        },
-        "summary": "=On-trip issue for Group ID {{ $('Get row(s)').item.json.group_id }}",
-        "additionalFields": {
-          "description": "={{ $json.output[0].content[0].text }}",
-          "customFieldsUi": {
-            "customFieldsValues": [
-              {
-                "fieldId": {
-                  "__rl": true,
-                  "value": "customfield_10235",
-                  "mode": "list",
-                  "cachedResultName": "Next Action"
+    "name": "[YourAgency]Bot – Q&A + Jira Creation - MAIN",
+    "nodes": [
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "db2f452e-d8f2-4fb8-bdc6-4a94cc84bb8d",
+                            "leftValue": "={{ $json.thread_ts }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "string",
+                                "operation": "notEmpty",
+                                "singleValue": true
+                            }
+                        },
+                        {
+                            "id": "7ad4b807-4b2e-4f13-ab4d-fcea8fc49f0c",
+                            "leftValue": "={{ $json.user }}",
+                            "rightValue": "[YOUR_BOT_USER_ID]",
+                            "operator": {
+                                "type": "string",
+                                "operation": "notEquals"
+                            }
+                        },
+                        {
+                            "id": "d8257363-1172-4970-9ce2-455a80c7132e",
+                            "leftValue": "={{ $json.bot_id }}",
+                            "rightValue": "false",
+                            "operator": {
+                                "type": "string",
+                                "operation": "empty",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
                 },
-                "fieldValue": "={{ $('IF – “Create CS ticket?”').item.json.jiraOutcome }}"
-              },
-              {
-                "fieldId": {
-                  "__rl": true,
-                  "value": "customfield_10236",
-                  "mode": "list",
-                  "cachedResultName": "Is it an Urgent Issue?"
-                },
-                "fieldValue": "={{ $('Get row(s)').item.json.urgent }}"
-              },
-              {
-                "fieldId": {
-                  "__rl": true,
-                  "value": "customfield_10130",
-                  "mode": "list",
-                  "cachedResultName": "Refund Amount"
-                },
-                "fieldValue": "={{ $('Get row(s)').item.json.refund_amount }}"
-              },
-              {
-                "fieldId": {
-                  "__rl": true,
-                  "value": "customfield_10436",
-                  "mode": "list",
-                  "cachedResultName": "Actions Taken"
-                },
-                "fieldValue": "={{ $('Get row(s)').item.json.action_taken }}"
-              }
-            ]
-          }
-        }
-      },
-      "type": "n8n-nodes-base.jira",
-      "typeVersion": 1,
-      "position": [
-        2304,
-        0
-      ],
-      "id": "f0a29c25-daad-4a1a-a37a-5aef88d2756d",
-      "name": "Jira - Create CS Ticket",
-      "credentials": {
-        "jiraSoftwareCloudApi": {
-          "id": "x1cTbBgY5btlPl8J",
-          "name": "Jira SW Cloud account [Your Agency]"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "186bc86c-f6a9-45e4-99b8-ed25497e5408",
-              "leftValue": "={{ $('Code (Decide Next Step)').item.json.createTickets.ops_refund }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                16,
+                -32
+            ],
+            "id": "60acf6f5-77da-40d8-82d0-2ec67a62ceb6",
+            "name": "If"
         },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1936,
-        368
-      ],
-      "id": "b297bee4-4427-4a32-8eca-14ddf2c51def",
-      "name": "IF – Create refund ticket?"
-    },
-    {
-      "parameters": {
-        "authentication": "appToken",
-        "resource": "deal",
-        "operation": "search",
-        "limit": 1,
-        "filterGroupsUi": {
-          "filterGroupsValues": [
-            {
-              "filtersUi": {
-                "filterValues": [
-                  {
-                    "propertyName": "group_id",
-                    "value": "={{ $json.group_id }}"
-                  }
+        {
+            "parameters": {
+                "operation": "get",
+                "dataTableId": {
+                    "__rl": true,
+                    "value": "[YOUR_DATA_TABLE_ID]",
+                    "mode": "list",
+                    "cachedResultName": "conversation_state",
+                    "cachedResultUrl": ""
+                },
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "thread_ts",
+                            "keyValue": "={{ $json.thread_ts }}"
+                        }
+                    ]
+                },
+                "returnAll": true
+            },
+            "type": "n8n-nodes-base.dataTable",
+            "typeVersion": 1,
+            "position": [
+                384,
+                -144
+            ],
+            "id": "12700ae7-1e80-493f-8fdd-3bca04e58023",
+            "name": "Get row(s)",
+            "alwaysOutputData": true
+        },
+        {
+            "parameters": {
+                "select": "channel",
+                "channelId": {
+                    "__rl": true,
+                    "value": "={{ $('When Executed by Another Workflow').item.json.channel }}",
+                    "mode": "id"
+                },
+                "text": "Sorry, I don’t have context for this thread",
+                "otherOptions": {
+                    "thread_ts": {
+                        "replyValues": {
+                            "thread_ts": "={{ $('When Executed by Another Workflow').item.json.ts }}"
+                        }
+                    }
+                }
+            },
+            "type": "n8n-nodes-base.slack",
+            "typeVersion": 2.3,
+            "position": [
+                400,
+                32
+            ],
+            "id": "497bad5f-0c2d-4206-99ff-eef8b1b6c8a8",
+            "name": "Send a message",
+            "webhookId": "[YOUR_WEBHOOK_ID]",
+            "credentials": {
+                "slackApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "Slack account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "// Code (Prepare State Input)\n// ---------------------------\n// Loads conversation state from the DB row and latest message from Slack.\n\n// 1) Load current DB row (conversation state) from previous node\nconst dbRow = $json || {};\n\n// 2) Load latest Slack message from the trigger\n// Ensure your trigger node is named exactly \"Slack Trigger\"\n// const slack = $node[\"Slack Trigger\"].json || {};\nconst slack = $('When Executed by Another Workflow').item.json || {};\n\n// Helper: extract human-readable text from Slack payload\nfunction extractSlackText(msg) {\n  if (!msg) return '';\n  \n  // Plain text\n  if (msg.text && typeof msg.text === 'string') return msg.text.trim();\n  \n  // Rich Text / Block Kit\n  if (Array.isArray(msg.blocks) && msg.blocks.length > 0) {\n    const block = msg.blocks[0];\n    if (block.elements && block.elements.length > 0 && block.elements[0].elements) {\n      const textEl = block.elements[0].elements.find(e => e.type === 'text');\n      if (textEl && textEl.text) return textEl.text.trim();\n    }\n  }\n  return '';\n}\n\n// Helper: Safe Boolean Converter (Handles \"true\"/\"yes\" strings from DB)\nfunction safeBool(val) {\n  if (val === true || val === 'true' || val === 'Yes' || val === 'yes' || val === '1') return true;\n  if (val === false || val === 'false' || val === 'No' || val === 'no' || val === '0') return false;\n  return null; // Return null if undefined so we know it hasn't been asked yet\n}\n\n// 3) Hydrate answer state from DB columns\nlet answers = {\n  // Boolean Flags\n  deal_confirmed:     safeBool(dbRow.deal_confirmed),\n  resolved_now:       safeBool(dbRow.resolved_now),\n  urgent:             safeBool(dbRow.urgent),\n  solved_without_ops: safeBool(dbRow.solved_without_ops),\n  payment_involved:   safeBool(dbRow.payment_involved),\n  post_trip:          safeBool(dbRow.post_trip),\n  ops_required: safeBool(dbRow.ops_required),\n\n  // Text Fields\n  description:        dbRow.description || '',\n  action_taken:      dbRow.action_taken || '', // Stores answer for both Branch A & B\n  desired_action:    dbRow.desired_action || '',\n  refund_amount:      dbRow.refund_amount || ''\n};\n\n// 4) Determine current step\n// If DB has no step, assume we are at the start\nconst step =\n  dbRow.current_step && typeof dbRow.current_step === 'string'\n    ? dbRow.current_step\n    : 'awaiting_deal_confirmation';\n\n// 5) Get IDs (Thread, Channel, User, Group)\nconst thread_ts =\n  dbRow.thread_ts ||\n  slack.body?.event?.thread_ts ||\n  slack.thread_ts ||\n  slack.ts ||\n  null;\n\nconst channel =\n  dbRow.channel ||\n  slack.channel ||\n  slack.body?.event?.channel ||\n  null;\n\nconst user_id =\n  dbRow.user_id ||\n  slack.user ||\n  slack.user_id ||\n  slack.body?.event?.user ||\n  null;\n\nconst group_id = dbRow.group_id || null;\n\n// 6) Get latest message text\nconst messageText = extractSlackText(slack.body?.event || slack);\n\n// 7) Output\nreturn [{\n  thread_ts,\n  channel,\n  user_id,\n  group_id,\n  current_step: step,\n  answers,\n  message: messageText,\n}];"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                592,
+                -112
+            ],
+            "id": "68ae5605-8119-415c-ad71-ba4454928004",
+            "name": "Code (Prepare State Input)"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Code node: \"Decide Next Steps\"\n// Logic Flow:\n// 1. Verify Deal -> 2. Description -> 3. Resolved Now? (BRANCHING POINT)\n// BRANCH A (No/Active): 4A. Urgent? -> 5A. Actions Taken -> 6A. Desired Outcome -> Merge\n// BRANCH B (Yes/Resolved): 4B. Actions Taken -> 5B. Ops Help? -> Merge\n// MERGE: 7. Payment? -> (If Yes) 7.5 Amount -> 8. Post Trip\n\n// ---------- helpers ----------\nfunction parseYesNo(text) {\n  if (!text) return null;\n  const t = text.trim().toLowerCase();\n  if (/(^|\\b)(y|yes|yeah|yep|correct|true)/.test(t)) return true;\n  if (/(^|\\b)(n|no|nope|false|wrong)/.test(t))   return false;\n  return null;\n}\n\n// ---------- load state ----------\nconst item  = $json;\nlet step    = item.current_step || 'awaiting_deal_confirmation';\n// Use answers from previous node or init empty\nlet answers = item.answers || {};\nconst text  = (item.message || '').trim();\n\nlet next_question = null;\n\n// ---------- RESET COMMAND ----------\n// Allows user to restart if they get stuck\nif (text.toLowerCase() === 'reset' || text.toLowerCase() === 'restart') {\n  return [{\n    ...item,\n    current_step: 'awaiting_deal_confirmation',\n    next_question: '🔄 Reset. Is this the correct trip? (yes/no)',\n    answers: {}\n  }];\n}\n\n// ---------- STATE MACHINE ----------\nswitch (step) {\n\n  // STEP 1: Verify Deal\n  case 'awaiting_deal_confirmation': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = `Is this the correct trip (Group ID ${item.group_id})? (yes/no)`;\n    } else {\n      answers.deal_confirmed = yn;\n      if (!yn) {\n        step = 'completed';\n        next_question = null; // Exit flow\n      } else {\n        step = 'ask_description';\n        next_question = 'Got it. Please provide a summary/description of the issue.';\n      }\n    }\n    break;\n  }\n\n  // STEP 2: Description\n  case 'ask_description': {\n    if (!text) {\n      next_question = 'Please provide a summary/description of the issue.';\n    } else {\n      answers.description = text;\n      // Move to Logic Gate\n      step = 'ask_is_resolved';\n      next_question = 'Has the issue been resolved? (yes/no)';\n    }\n    break;\n  }\n\n  // STEP 3: The Logic Gate (Active vs Resolved)\n  case 'ask_is_resolved': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Is the issue currently resolved? Please answer yes or no.';\n    } else {\n      answers.resolved_now = yn;\n\n      if (yn === false) {\n        // --- BRANCH A: ACTIVE ISSUE (No) ---\n        step = 'ask_urgency';\n        next_question = 'Is this an urgent issue? (yes/no)';\n      } else {\n        // --- BRANCH B: RESOLVED ISSUE (Yes) ---\n        answers.urgent = false;\n        step = 'ask_actions_resolved';\n        next_question = 'What actions or steps were taken to resolve the issue?';\n      }\n    }\n    break;\n  }\n\n  // ================= BRANCH A (Active) =================\n\n  // STEP 4A: Urgency\n  case 'ask_urgency': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Is this an urgent issue? (yes/no)';\n    } else {\n      answers.urgent = yn;\n      step = 'ask_ops_required';\n      next_question = 'Does this issue require OPS support?';\n    }\n    break;\n  }\n\n  // STEP 4B: Ask Ops Support\n  case 'ask_ops_required': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Does this issue require OPS support?';\n    } else {\n      answers.ops_required = yn;\n      step = 'ask_actions_active';\n      next_question = 'What actions have been taken so far?';\n    }\n    break;\n  }\n\n  // STEP 5A: Actions Taken (Active)\n  case 'ask_actions_active': {\n    if (!text) {\n      next_question = 'What actions have been taken so far?';\n    } else {\n      answers.action_taken = text;\n      step = 'ask_desired_outcome';\n      next_question = 'What is the desired outcome or solution?';\n    }\n    break;\n  }\n\n  // STEP 6A: Desired Outcome (Active)\n  case 'ask_desired_outcome': {\n    if (!text) {\n      next_question = 'What is the desired outcome or solution?';\n    } else {\n      answers.desired_action = text;\n      // Merge to Finance\n      step = 'ask_payment';\n      next_question = 'Did this involve a payment on [Your Agency] or any refund/credits? (yes/no)';\n    }\n    break;\n  }\n\n  // ================= BRANCH B (Resolved) =================\n\n  // STEP 4B: Actions Taken (Resolved)\n  case 'ask_actions_resolved': {\n    if (!text) {\n      next_question = 'What actions were taken to resolve this?';\n    } else {\n      answers.action_taken = text;\n      step = 'ask_ops_help';\n      next_question = 'Did it require OPS help? (yes/no)';\n    }\n    break;\n  }\n\n  // STEP 5B: Ops Help\n  case 'ask_ops_help': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Did it require OPS help? (yes/no)';\n    } else {\n      // Logic: If \"Yes\" it required Ops -> solved_without_ops is FALSE\n      // If \"No\" it didn't require Ops -> solved_without_ops is TRUE\n      answers.solved_without_ops = !yn;\n      \n      // Merge to Finance\n      step = 'ask_payment';\n      next_question = 'Did this involve a payment on [Your Agency] or any refund/credits? (yes/no)';\n    }\n    break;\n  }\n\n  // ================= MERGE (Financials) =================\n\n  // STEP 7: Payment Check\n  case 'ask_payment': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Did this involve a payment on [Your Agency] or any refund/credits? (yes/no)';\n    } else {\n      answers.payment_involved = yn;\n      if (yn === true) {\n        // If YES, ask Amount\n        step = 'ask_refund_amount';\n        next_question = 'What was the exact amount refunded / payed? (e.g.,50 USD)';\n      } else {\n        // If NO, skip to Post Trip\n        step = 'ask_post_trip';\n        next_question = 'Should this also be tracked as a *post-trip complaint*? (yes/no)';\n      }\n    }\n    break;\n  }\n\n  // STEP 7.5: Refund Amount (Only if Payment involved)\n  case 'ask_refund_amount': {\n    if (!text) {\n      next_question = 'Please specify the exact amount refunded / payed (e.g.,50 USD).';\n    } else {\n      answers.refund_amount = text;\n      step = 'ask_post_trip';\n      next_question = 'Should this also be tracked as a *post-trip complaint*? (yes/no)';\n    }\n    break;\n  }\n\n  // STEP 8: Post Trip Tagging\n  case 'ask_post_trip': {\n    const yn = parseYesNo(text);\n    if (yn === null) {\n      next_question = 'Should this also be tracked as a *post-trip complaint*? (yes/no)';\n    } else {\n      answers.post_trip = yn;\n      step = 'completed';\n      next_question = null;\n    }\n    break;\n  }\n\n  default: {\n    step = 'completed';\n    next_question = null;\n    break;\n  }\n}\n\n\n// ---------- Logic for Ticket Flags & Jira Outcome ----------\n\nlet createTickets = {\n  cs_on_trip:  false,\n  ops_on_trip: false,\n  ops_refund:  false,\n  post_trip:   !!answers.post_trip,\n};\n\nlet jiraOutcome = '';\n\nif (step === 'completed' && answers.deal_confirmed) {\n\n  // 1. Mandatory CS Ticket\n  createTickets.cs_on_trip = true;\n\n  // 2. OPS Ticket Logic (Updated for new flow)\n  // If Unresolved: Check 'ops_required'\n  // If Resolved: Check if it was NOT solved without ops (meaning !solved_without_ops)\n  if ((!answers.resolved_now && answers.ops_required) || \n      (answers.resolved_now && answers.solved_without_ops === false)) {\n    createTickets.ops_on_trip = true;\n  }\n\n  // 3. Finance Ticket Logic\n  if (answers.payment_involved) {\n    createTickets.ops_refund = true;\n  }\n\n  // 4. Generate Jira Outcome Text (New Logic)\n   \n  if (!answers.resolved_now) {\n    // --- UNRESOLVED CASES ---\n    \n    if (answers.urgent) {\n      // URGENT\n      if (answers.ops_required && answers.payment_involved) {\n        jiraOutcome = 'Unresolved Urgent - Escalate to OPS - Refund Required';\n      } else {\n        // Assumes OPS required (based on your request structure)\n        jiraOutcome = 'Unresolved Urgent - Escalate to OPS';\n      }\n    } else {\n      // NOT URGENT\n      if (answers.ops_required && answers.payment_involved) {\n        jiraOutcome = 'Unresolved - Escalate to OPS - Refund Required';\n      } else {\n        jiraOutcome = 'Unresolved - Escalate to OPS';\n      }\n    }\n\n  } else {\n    // --- RESOLVED CASES ---\n    \n    if (answers.solved_without_ops) {\n      // Case A: Resolved WITHOUT Ops\n      if (answers.payment_involved) {\n        jiraOutcome = 'Resolved without OPS - Refund Required';\n      } else {\n        jiraOutcome = 'Resolved without OPS - No Refund Required';\n      }\n    } else {\n      // Case B: Resolved WITH Ops (solved_without_ops is false)\n      if (answers.payment_involved) {\n        jiraOutcome = 'Resolved by OPS - Refund Required';\n      } else {\n        jiraOutcome = 'Resolved by OPS - No Refund Required';\n      }\n    }\n  }\n\n} else if (step === 'completed' && !answers.deal_confirmed) {\n  jiraOutcome = 'Trip not confirmed – no tickets created';\n}\n\n\n// ---------- RETURN ----------\nreturn [{\n  thread_ts:    item.thread_ts,\n  channel:      item.channel,\n  user_id:      item.user_id,\n  group_id:     item.group_id,\n  current_step: step,\n  answers,\n  next_question,\n  createTickets,\n  jiraOutcome,\n}];"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                800,
+                -112
+            ],
+            "id": "4b5de1ad-a89f-426d-9faf-e94d42e8b383",
+            "name": "Code (Decide Next Step)"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "8c164e14-60f8-49c9-b185-110979cb67e2",
+                            "leftValue": "={{ $json.next_question }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "string",
+                                "operation": "notEmpty",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                1184,
+                -112
+            ],
+            "id": "9469a4bc-04ef-498a-b9a6-589b9c53b501",
+            "name": "IF node - \"Do we have a next question?\""
+        },
+        {
+            "parameters": {
+                "select": "channel",
+                "channelId": {
+                    "__rl": true,
+                    "value": "={{ $('When Executed by Another Workflow').item.json.channel }}",
+                    "mode": "id"
+                },
+                "text": "={{ $json.next_question }}",
+                "otherOptions": {
+                    "includeLinkToWorkflow": false,
+                    "thread_ts": {
+                        "replyValues": {
+                            "thread_ts": "={{ $('When Executed by Another Workflow').item.json.ts }}"
+                        }
+                    }
+                }
+            },
+            "type": "n8n-nodes-base.slack",
+            "typeVersion": 2.3,
+            "position": [
+                1680,
+                -240
+            ],
+            "id": "a3db4153-a3c4-450c-86ec-67544fca2931",
+            "name": "Slack “Send message” (threaded reply)",
+            "webhookId": "[YOUR_WEBHOOK_ID]",
+            "credentials": {
+                "slackApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "Slack account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "update",
+                "dataTableId": {
+                    "__rl": true,
+                    "value": "[YOUR_DATA_TABLE_ID]",
+                    "mode": "list",
+                    "cachedResultName": "conversation_state",
+                    "cachedResultUrl": ""
+                },
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "thread_ts",
+                            "keyValue": "={{ $('Code (Decide Next Step)').item.json.thread_ts }}"
+                        }
+                    ]
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "current_step": "={{ $('Code (Decide Next Step)').item.json.current_step }}",
+                        "answers": "={{ JSON.stringify($json.answers) }}",
+                        "thread_ts": "={{ $json.thread_ts }}",
+                        "channel": "={{ $json.channel }}",
+                        "user_id": "={{ $json.user_id }}",
+                        "group_id": "={{ $json.group_id }}",
+                        "deal_confirmed": "={{ $json.answers.deal_confirmed }}",
+                        "urgent": "={{ $json.answers.urgent }}",
+                        "solved_without_ops": "={{ $json.answers.solved_without_ops }}",
+                        "resolved_now": "={{ $json.answers.resolved_now }}",
+                        "payment_involved": "={{ $json.answers.payment_involved }}",
+                        "post_trip": "={{ $json.answers.post_trip }}",
+                        "cs_on_trip_ticket": "={{ $json.createTickets.cs_on_trip }}",
+                        "ops_on_trip_ticket": "={{ $json.createTickets.ops_on_trip }}",
+                        "ops_refund_ticket": "={{ $json.createTickets.ops_refund }}",
+                        "jira_outcome": "={{ $json.jiraOutcome }}",
+                        "description": "={{ $json.answers.description }}",
+                        "action_taken": "={{ $json.answers.action_taken }}",
+                        "desired_action": "={{ $json.answers.desired_action }}",
+                        "refund_amount": "={{ $json.answers.refund_amount }}",
+                        "ops_required": "={{ $json.answers.ops_required }}"
+                    },
+                    "matchingColumns": [],
+                    "schema": [
+                        {
+                            "id": "thread_ts",
+                            "displayName": "thread_ts",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "channel",
+                            "displayName": "channel",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "user_id",
+                            "displayName": "user_id",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "group_id",
+                            "displayName": "group_id",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "current_step",
+                            "displayName": "current_step",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "answers",
+                            "displayName": "answers",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "deal_confirmed",
+                            "displayName": "deal_confirmed",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "urgent",
+                            "displayName": "urgent",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "solved_without_ops",
+                            "displayName": "solved_without_ops",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "resolved_now",
+                            "displayName": "resolved_now",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "payment_involved",
+                            "displayName": "payment_involved",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "post_trip",
+                            "displayName": "post_trip",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "jira_outcome",
+                            "displayName": "jira_outcome",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "cs_on_trip_ticket",
+                            "displayName": "cs_on_trip_ticket",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "ops_on_trip_ticket",
+                            "displayName": "ops_on_trip_ticket",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "ops_refund_ticket",
+                            "displayName": "ops_refund_ticket",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "description",
+                            "displayName": "description",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "action_taken",
+                            "displayName": "action_taken",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "desired_action",
+                            "displayName": "desired_action",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "refund_amount",
+                            "displayName": "refund_amount",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "ops_required",
+                            "displayName": "ops_required",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "boolean",
+                            "readOnly": false,
+                            "removed": false
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.dataTable",
+            "typeVersion": 1,
+            "position": [
+                1040,
+                -272
+            ],
+            "id": "5d6970c0-e725-4233-b923-427c5a2d32cf",
+            "name": "Update row(s)"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "b45a2142-68cb-4887-a4ce-45f359699dbb",
+                            "leftValue": "={{ $json.createTickets.cs_on_trip }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "true",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                1424,
+                16
+            ],
+            "id": "f162fc63-faf1-463c-ae88-96a995e5b3c1",
+            "name": "IF – “Create CS ticket?”"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "8bbf399d-9558-41d9-8928-720fee253386",
+                            "leftValue": "={{ $('Code (Decide Next Step)').item.json.createTickets.ops_on_trip }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "true",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                1648,
+                176
+            ],
+            "id": "6eb6781c-b715-478f-ad1e-dcfb79597dd8",
+            "name": "IF – Create OPS on-trip?"
+        },
+        {
+            "parameters": {
+                "project": {
+                    "__rl": true,
+                    "value": "[YOUR_JIRA_PROJECT_ID]",
+                    "mode": "list",
+                    "cachedResultName": "[Your Agency] CS"
+                },
+                "issueType": {
+                    "__rl": true,
+                    "value": "[YOUR_ISSUE_TYPE_ID]",
+                    "mode": "list",
+                    "cachedResultName": "CS On-Trip Issue"
+                },
+                "summary": "=On-trip issue for Group ID {{ $('Get row(s)').item.json.group_id }}",
+                "additionalFields": {
+                    "description": "={{ $json.output[0].content[0].text }}",
+                    "customFieldsUi": {
+                        "customFieldsValues": [
+                            {
+                                "fieldId": {
+                                    "__rl": true,
+                                    "value": "customfield_10235",
+                                    "mode": "list",
+                                    "cachedResultName": "Next Action"
+                                },
+                                "fieldValue": "={{ $('IF – “Create CS ticket?”').item.json.jiraOutcome }}"
+                            },
+                            {
+                                "fieldId": {
+                                    "__rl": true,
+                                    "value": "customfield_10236",
+                                    "mode": "list",
+                                    "cachedResultName": "Is it an Urgent Issue?"
+                                },
+                                "fieldValue": "={{ $('Get row(s)').item.json.urgent }}"
+                            },
+                            {
+                                "fieldId": {
+                                    "__rl": true,
+                                    "value": "customfield_10130",
+                                    "mode": "list",
+                                    "cachedResultName": "Refund Amount"
+                                },
+                                "fieldValue": "={{ $('Get row(s)').item.json.refund_amount }}"
+                            },
+                            {
+                                "fieldId": {
+                                    "__rl": true,
+                                    "value": "customfield_10436",
+                                    "mode": "list",
+                                    "cachedResultName": "Actions Taken"
+                                },
+                                "fieldValue": "={{ $('Get row(s)').item.json.action_taken }}"
+                            }
+                        ]
+                    }
+                }
+            },
+            "type": "n8n-nodes-base.jira",
+            "typeVersion": 1,
+            "position": [
+                2304,
+                0
+            ],
+            "id": "f0a29c25-daad-4a1a-a37a-5aef88d2756d",
+            "name": "Jira - Create CS Ticket",
+            "credentials": {
+                "jiraSoftwareCloudApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "Jira SW Cloud account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "186bc86c-f6a9-45e4-99b8-ed25497e5408",
+                            "leftValue": "={{ $('Code (Decide Next Step)').item.json.createTickets.ops_refund }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "true",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                1936,
+                368
+            ],
+            "id": "b297bee4-4427-4a32-8eca-14ddf2c51def",
+            "name": "IF – Create refund ticket?"
+        },
+        {
+            "parameters": {
+                "authentication": "appToken",
+                "resource": "deal",
+                "operation": "search",
+                "limit": 1,
+                "filterGroupsUi": {
+                    "filterGroupsValues": [
+                        {
+                            "filtersUi": {
+                                "filterValues": [
+                                    {
+                                        "propertyName": "group_id",
+                                        "value": "={{ $json.group_id }}"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "additionalFields": {
+                    "properties": [
+                        "lead_guest_name",
+                        "checkin_date",
+                        "destination",
+                        "number_of_people",
+                        "group_id",
+                        "amount"
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.hubspot",
+            "typeVersion": 2.2,
+            "position": [
+                1696,
+                0
+            ],
+            "id": "f4f1ab3d-72b4-4531-991b-3f946ff37601",
+            "name": "Search for deals",
+            "credentials": {
+                "hubspotAppToken": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "HubSpot App Token account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "modelId": {
+                    "__rl": true,
+                    "value": "gpt-5.1",
+                    "mode": "list",
+                    "cachedResultName": "GPT-5.1"
+                },
+                "responses": {
+                    "values": [
+                        {
+                            "role": "system",
+                            "content": "You format Jira ticket descriptions.\n\nOutput MUST follow this EXACT structure using Jira wiki headings:\n\nh1. Issue Summary\n<one-sentence summary of the issue>\n\nh2. Booking Details\nGroup ID: <value>\nLead guest name: <value>\nParty size: <value>\nAccommodation: <value>\nCheck-in date: <value>\n\nh2. Triage Notes\nUrgency: <Urgent / Not urgent> - <short reason>\nResolution status: <Resolved / Not resolved / In progress> - <short status note>\nActions already taken: <sentence or short paragraph>\nExpected / desired solution: <sentence or short paragraph>\nPayment / refund: <describe if payment/refund involved and amount refunded, if any>\nPost-trip tracking: <Yes/No and short note if it should be tracked as post-trip>\n\nRules:\n- DO NOT use numbered lists or lettered lists at all (no \"1.\", \"2.\", \"a.\", \"b.\").\n- DO NOT wrap the answer in quotes or code blocks.\n- DO NOT add any extra sections, explanations, or labels.\n- Only return the final Jira description text in the format above.\n"
+                        },
+                        {
+                            "content": "=Customer issue description: {{ $('Get row(s)').item.json.description }}\nUrgent on-trip issue: {{ $('Get row(s)').item.json.urgent }}\nResolved now: {{ $('Get row(s)').item.json.resolved_now }}\nPayment involved: {{ $('Get row(s)').item.json.payment_involved }}\nRefund amount: {{ $('Get row(s)').item.json.refund_amount }}\nPost-trip issue: {{ $('Code (Decide Next Step)').item.json.createTickets.post_trip }}\n\nGroup ID: {{ $json.properties.group_id }}\nLead guest name: {{ $json.properties.lead_guest_name }}\nParty size: {{ $json.properties.number_of_people }}\nAccommodation: {{ $json.properties.destination }}\nCheck-in date: {{ $json.properties.checkin_date }}\n"
+                        }
+                    ]
+                },
+                "builtInTools": {},
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.openAi",
+            "typeVersion": 2.1,
+            "position": [
+                1936,
+                0
+            ],
+            "id": "aeaf6bd3-2889-4af3-b1ad-626940d67c25",
+            "name": "Message a model",
+            "credentials": {
+                "openAiApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "OpenAi account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "ed3acd58-5cdc-4f05-b5b6-81f7610eea5f",
+                            "leftValue": "={{ $('Code (Decide Next Step)').item.json.createTickets.post_trip }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "true",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                2208,
+                528
+            ],
+            "id": "e8f37413-9767-402f-9b07-f0a86f8d8eb8",
+            "name": "IF – Ticket is Post Trip?"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "b97335c2-3cef-443b-aee8-4752105892d6",
+                            "leftValue": "={{ $('Get row(s)').item.json.urgent }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                2704,
+                -80
+            ],
+            "id": "f6b2d04e-746f-49d4-a39d-dcd10316efae",
+            "name": "IF - Validate Urgency"
+        },
+        {
+            "parameters": {
+                "modelId": {
+                    "__rl": true,
+                    "value": "gpt-5.1",
+                    "mode": "list",
+                    "cachedResultName": "GPT-5.1"
+                },
+                "responses": {
+                    "values": [
+                        {
+                            "role": "system",
+                            "content": "=You are a Crisis Operations Assistant. Input Data:\n\nIssue: {{ $('Code (Decide Next Step)').item.json.answers.description }}\n\nHistory: {{ $('Code (Decide Next Step)').item.json.answers.action_taken }}\n\nOutcome Needed: {{ $('Code (Decide Next Step)').item.json.answers.desired_action }}\n\nTask: Summarize this into a tight, professional \"Situation Report\" (max 2-3 sentences). Focus on the core problem and the immediate action required. Do not include the booking details (I will add those separately)."
+                        }
+                    ]
+                },
+                "builtInTools": {},
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.openAi",
+            "typeVersion": 2.1,
+            "position": [
+                2944,
+                -96
+            ],
+            "id": "838455c1-4689-4322-a8a5-a39f6fb962c9",
+            "name": "Message a model1",
+            "credentials": {
+                "openAiApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "OpenAi account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "select": "channel",
+                "channelId": {
+                    "__rl": true,
+                    "value": "[YOUR_SUPPORT_CHANNEL_ID]",
+                    "mode": "list",
+                    "cachedResultName": "[your-support-channel]"
+                },
+                "text": "=🚨 *New Urgent Customer Issue*\n\n*Issue Title:* {{ $('Jira - Create CS Ticket').item.json.key }}: {{ $('Code (Prepare State Input)').item.json.answers.description }}\n\n*Deal Details:* {{ $('Search for deals').item.json.properties.lead_guest_name }} @ {{ $('Search for deals').item.json.properties.destination }}\n(Group: {{ $('Search for deals').item.json.properties.group_id }})\n\n*Context & Status:*\n{{ $json.output[0].content[0].text }}\n\n👉 <https://[YOUR_JIRA_DOMAIN].atlassian.net/browse/{{ $('Jira - Create CS Ticket').item.json.key }}|View Jira Ticket>\n👉 <{{ $('Search for deals').item.json.url }}|Open in HubSpot>",
+                "otherOptions": {
+                    "includeLinkToWorkflow": false
+                }
+            },
+            "type": "n8n-nodes-base.slack",
+            "typeVersion": 2.3,
+            "position": [
+                3264,
+                -96
+            ],
+            "id": "2ac18002-4dda-43f7-bb28-507849018d68",
+            "name": "Send a message1",
+            "webhookId": "[YOUR_WEBHOOK_ID]",
+            "credentials": {
+                "slackApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "Slack account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "inputSource": "passthrough"
+            },
+            "type": "n8n-nodes-base.executeWorkflowTrigger",
+            "typeVersion": 1.1,
+            "position": [
+                -304,
+                64
+            ],
+            "id": "8f413559-eb8c-4a6e-beff-a13f367d6084",
+            "name": "When Executed by Another Workflow"
+        },
+        {
+            "parameters": {
+                "select": "channel",
+                "channelId": {
+                    "__rl": true,
+                    "value": "={{ $('When Executed by Another Workflow').item.json.channel }}",
+                    "mode": "id"
+                },
+                "text": "=Thanks for providing those details. 🙌\n\nI've logged an appropriate ticket(s) to track this issue.\n\n<https://[YOUR_JIRA_DOMAIN].atlassian.net/browse/{{ $('Jira - Create CS Ticket').item.json.key }}|View Jira Ticket>\n\nIf this was flagged as **Urgent**, I have also opened a dedicated alert thread in the #support channel for the Ops team to investigate immediately.",
+                "otherOptions": {
+                    "includeLinkToWorkflow": false,
+                    "thread_ts": {
+                        "replyValues": {
+                            "thread_ts": "={{ $('When Executed by Another Workflow').item.json.ts }}"
+                        }
+                    }
+                }
+            },
+            "type": "n8n-nodes-base.slack",
+            "typeVersion": 2.3,
+            "position": [
+                2496,
+                -128
+            ],
+            "id": "8cb2d6bf-8171-4fe3-881b-14fb473b1ca6",
+            "name": "Slack “Send message” (threaded reply)1",
+            "webhookId": "[YOUR_WEBHOOK_ID]",
+            "credentials": {
+                "slackApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "Slack account [Your Agency]"
+                }
+            }
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "If": {
+            "main": [
+                [
+                    {
+                        "node": "Get row(s)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Send a message",
+                        "type": "main",
+                        "index": 0
+                    }
                 ]
-              }
-            }
-          ]
+            ]
         },
-        "additionalFields": {
-          "properties": [
-            "lead_guest_name",
-            "checkin_date",
-            "destination",
-            "number_of_people",
-            "group_id",
-            "amount"
-          ]
+        "Get row(s)": {
+            "main": [
+                [
+                    {
+                        "node": "Code (Prepare State Input)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send a message": {
+            "main": [
+                []
+            ]
+        },
+        "Code (Prepare State Input)": {
+            "main": [
+                [
+                    {
+                        "node": "Code (Decide Next Step)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Code (Decide Next Step)": {
+            "main": [
+                [
+                    {
+                        "node": "Update row(s)",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "IF node - \"Do we have a next question?\"",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "IF node - \"Do we have a next question?\"": {
+            "main": [
+                [
+                    {
+                        "node": "Slack “Send message” (threaded reply)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "IF – “Create CS ticket?”",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Slack “Send message” (threaded reply)": {
+            "main": [
+                []
+            ]
+        },
+        "Update row(s)": {
+            "main": [
+                []
+            ]
+        },
+        "IF – “Create CS ticket?”": {
+            "main": [
+                [
+                    {
+                        "node": "Search for deals",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "IF – Create OPS on-trip?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "IF – Create OPS on-trip?": {
+            "main": [
+                [],
+                [
+                    {
+                        "node": "IF – Create refund ticket?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "IF – Create refund ticket?": {
+            "main": [
+                [],
+                [
+                    {
+                        "node": "IF – Ticket is Post Trip?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Search for deals": {
+            "main": [
+                [
+                    {
+                        "node": "Message a model",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Message a model": {
+            "main": [
+                [
+                    {
+                        "node": "Jira - Create CS Ticket",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Jira - Create CS Ticket": {
+            "main": [
+                [
+                    {
+                        "node": "Slack “Send message” (threaded reply)1",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "IF - Validate Urgency": {
+            "main": [
+                [
+                    {
+                        "node": "Message a model1",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Message a model1": {
+            "main": [
+                [
+                    {
+                        "node": "Send a message1",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "When Executed by Another Workflow": {
+            "main": [
+                [
+                    {
+                        "node": "If",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Slack “Send message” (threaded reply)1": {
+            "main": [
+                [
+                    {
+                        "node": "IF - Validate Urgency",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
         }
-      },
-      "type": "n8n-nodes-base.hubspot",
-      "typeVersion": 2.2,
-      "position": [
-        1696,
-        0
-      ],
-      "id": "f4f1ab3d-72b4-4531-991b-3f946ff37601",
-      "name": "Search for deals",
-      "credentials": {
-        "hubspotAppToken": {
-          "id": "JPJ8eEBnNRZMlBtU",
-          "name": "HubSpot App Token account [Your Agency]"
-        }
-      }
     },
-    {
-      "parameters": {
-        "modelId": {
-          "__rl": true,
-          "value": "gpt-5.1",
-          "mode": "list",
-          "cachedResultName": "GPT-5.1"
-        },
-        "responses": {
-          "values": [
-            {
-              "role": "system",
-              "content": "You format Jira ticket descriptions.\n\nOutput MUST follow this EXACT structure using Jira wiki headings:\n\nh1. Issue Summary\n<one-sentence summary of the issue>\n\nh2. Booking Details\nGroup ID: <value>\nLead guest name: <value>\nParty size: <value>\nAccommodation: <value>\nCheck-in date: <value>\n\nh2. Triage Notes\nUrgency: <Urgent / Not urgent> - <short reason>\nResolution status: <Resolved / Not resolved / In progress> - <short status note>\nActions already taken: <sentence or short paragraph>\nExpected / desired solution: <sentence or short paragraph>\nPayment / refund: <describe if payment/refund involved and amount refunded, if any>\nPost-trip tracking: <Yes/No and short note if it should be tracked as post-trip>\n\nRules:\n- DO NOT use numbered lists or lettered lists at all (no \"1.\", \"2.\", \"a.\", \"b.\").\n- DO NOT wrap the answer in quotes or code blocks.\n- DO NOT add any extra sections, explanations, or labels.\n- Only return the final Jira description text in the format above.\n"
-            },
-            {
-              "content": "=Customer issue description: {{ $('Get row(s)').item.json.description }}\nUrgent on-trip issue: {{ $('Get row(s)').item.json.urgent }}\nResolved now: {{ $('Get row(s)').item.json.resolved_now }}\nPayment involved: {{ $('Get row(s)').item.json.payment_involved }}\nRefund amount: {{ $('Get row(s)').item.json.refund_amount }}\nPost-trip issue: {{ $('Code (Decide Next Step)').item.json.createTickets.post_trip }}\n\nGroup ID: {{ $json.properties.group_id }}\nLead guest name: {{ $json.properties.lead_guest_name }}\nParty size: {{ $json.properties.number_of_people }}\nAccommodation: {{ $json.properties.destination }}\nCheck-in date: {{ $json.properties.checkin_date }}\n"
-            }
-          ]
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 2.1,
-      "position": [
-        1936,
-        0
-      ],
-      "id": "aeaf6bd3-2889-4af3-b1ad-626940d67c25",
-      "name": "Message a model",
-      "credentials": {
-        "openAiApi": {
-          "id": "WQE6nDLpplhiCYIF",
-          "name": "OpenAi account [Your Agency]"
-        }
-      }
+    "active": false,
+    "settings": {
+        "executionOrder": "v1"
     },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "ed3acd58-5cdc-4f05-b5b6-81f7610eea5f",
-              "leftValue": "={{ $('Code (Decide Next Step)').item.json.createTickets.post_trip }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        2208,
-        528
-      ],
-      "id": "e8f37413-9767-402f-9b07-f0a86f8d8eb8",
-      "name": "IF – Ticket is Post Trip?"
+    "versionId": "34ae7298-1e24-47ef-b365-7ba806277081",
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "[YOUR_N8N_INSTANCE_ID]"
     },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "b97335c2-3cef-443b-aee8-4752105892d6",
-              "leftValue": "={{ $('Get row(s)').item.json.urgent }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            },
-            {
-              "id": "73e4f5b3-d1cf-4dbb-9a09-c2c127484bf2",
-              "leftValue": "",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "equals",
-                "name": "filter.operator.equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        2704,
-        -80
-      ],
-      "id": "f6b2d04e-746f-49d4-a39d-dcd10316efae",
-      "name": "IF - Validate Urgency"
-    },
-    {
-      "parameters": {
-        "modelId": {
-          "__rl": true,
-          "value": "gpt-5.1",
-          "mode": "list",
-          "cachedResultName": "GPT-5.1"
-        },
-        "responses": {
-          "values": [
-            {
-              "role": "system",
-              "content": "=You are a Crisis Operations Assistant. Input Data:\n\nIssue: {{ $('Code (Decide Next Step)').item.json.answers.description }}\n\nHistory: {{ $('Code (Decide Next Step)').item.json.answers.action_taken }}\n\nOutcome Needed: {{ $('Code (Decide Next Step)').item.json.answers.desired_action }}\n\nTask: Summarize this into a tight, professional \"Situation Report\" (max 2-3 sentences). Focus on the core problem and the immediate action required. Do not include the booking details (I will add those separately)."
-            }
-          ]
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 2.1,
-      "position": [
-        2944,
-        -96
-      ],
-      "id": "838455c1-4689-4322-a8a5-a39f6fb962c9",
-      "name": "Message a model1",
-      "credentials": {
-        "openAiApi": {
-          "id": "WQE6nDLpplhiCYIF",
-          "name": "OpenAi account [Your Agency]"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "C09UP90DLJ3",
-          "mode": "list",
-          "cachedResultName": "customer-support"
-        },
-        "text": "=🚨 *New Urgent Customer Issue*\n\n*Issue Title:* {{ $('Jira - Create CS Ticket').item.json.key }}: {{ $('Code (Prepare State Input)').item.json.answers.description }}\n\n*Deal Details:* {{ $('Search for deals').item.json.properties.lead_guest_name }} @ {{ $('Search for deals').item.json.properties.destination }}\n(Group: {{ $('Search for deals').item.json.properties.group_id }})\n\n*Context & Status:*\n{{ $json.output[0].content[0].text }}\n\n👉 <https://agiledevsconsulting.atlassian.net/browse/{{ $('Jira - Create CS Ticket').item.json.key }}|View Jira Ticket>\n👉 <{{ $('Search for deals').item.json.url }}|Open in HubSpot>",
-        "otherOptions": {
-          "includeLinkToWorkflow": false
-        }
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [
-        3264,
-        -96
-      ],
-      "id": "2ac18002-4dda-43f7-bb28-507849018d68",
-      "name": "Send a message1",
-      "webhookId": "17cdb3a3-64bd-449f-a228-e24a8286d308",
-      "credentials": {
-        "slackApi": {
-          "id": "VLmNvog2RDL0uHdq",
-          "name": "Slack account [Your Agency]"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "inputSource": "passthrough"
-      },
-      "type": "n8n-nodes-base.executeWorkflowTrigger",
-      "typeVersion": 1.1,
-      "position": [
-        -304,
-        64
-      ],
-      "id": "8f413559-eb8c-4a6e-beff-a13f367d6084",
-      "name": "When Executed by Another Workflow"
-    },
-    {
-      "parameters": {
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "={{ $('When Executed by Another Workflow').item.json.channel }}",
-          "mode": "id"
-        },
-        "text": "=Thanks for providing those details. 🙌\n\nI've logged an appropriate ticket(s) to track this issue.\n\n<https://agiledevsconsulting.atlassian.net/browse/{{ $('Jira - Create CS Ticket').item.json.key }}|View Jira Ticket>\n\nIf this was flagged as **Urgent**, I have also opened a dedicated alert thread in the #support channel for the Ops team to investigate immediately.",
-        "otherOptions": {
-          "includeLinkToWorkflow": false,
-          "thread_ts": {
-            "replyValues": {
-              "thread_ts": "={{ $('When Executed by Another Workflow').item.json.ts }}"
-            }
-          }
-        }
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [
-        2496,
-        -128
-      ],
-      "id": "8cb2d6bf-8171-4fe3-881b-14fb473b1ca6",
-      "name": "Slack “Send message” (threaded reply)1",
-      "webhookId": "159a5fe8-47e0-4c24-bd5f-e7bb6f9f6ede",
-      "credentials": {
-        "slackApi": {
-          "id": "VLmNvog2RDL0uHdq",
-          "name": "Slack account [Your Agency]"
-        }
-      }
-    }
-  ],
-  "pinData": {},
-  "connections": {
-    "If": {
-      "main": [
-        [
-          {
-            "node": "Get row(s)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Send a message",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get row(s)": {
-      "main": [
-        [
-          {
-            "node": "Code (Prepare State Input)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send a message": {
-      "main": [
-        []
-      ]
-    },
-    "Code (Prepare State Input)": {
-      "main": [
-        [
-          {
-            "node": "Code (Decide Next Step)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code (Decide Next Step)": {
-      "main": [
-        [
-          {
-            "node": "Update row(s)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "IF node - \"Do we have a next question?\"",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF node - \"Do we have a next question?\"": {
-      "main": [
-        [
-          {
-            "node": "Slack “Send message” (threaded reply)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "IF – “Create CS ticket?”",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Slack “Send message” (threaded reply)": {
-      "main": [
-        []
-      ]
-    },
-    "Update row(s)": {
-      "main": [
-        []
-      ]
-    },
-    "IF – “Create CS ticket?”": {
-      "main": [
-        [
-          {
-            "node": "Search for deals",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "IF – Create OPS on-trip?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF – Create OPS on-trip?": {
-      "main": [
-        [],
-        [
-          {
-            "node": "IF – Create refund ticket?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF – Create refund ticket?": {
-      "main": [
-        [],
-        [
-          {
-            "node": "IF – Ticket is Post Trip?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Search for deals": {
-      "main": [
-        [
-          {
-            "node": "Message a model",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Message a model": {
-      "main": [
-        [
-          {
-            "node": "Jira - Create CS Ticket",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Jira - Create CS Ticket": {
-      "main": [
-        [
-          {
-            "node": "Slack “Send message” (threaded reply)1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF - Validate Urgency": {
-      "main": [
-        [
-          {
-            "node": "Message a model1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Message a model1": {
-      "main": [
-        [
-          {
-            "node": "Send a message1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "When Executed by Another Workflow": {
-      "main": [
-        [
-          {
-            "node": "If",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Slack “Send message” (threaded reply)1": {
-      "main": [
-        [
-          {
-            "node": "IF - Validate Urgency",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
-  },
-  "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "versionId": "34ae7298-1e24-47ef-b365-7ba806277081",
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "2ece1384e5347fda07017394bf7802b71181b6cdfba2a9f61ec56ad187c46c4c"
-  },
-  "id": "hQsfa7dQH2NVdUm4",
-  "tags": []
+    "id": "[YOUR_WORKFLOW_ID]",
+    "tags": []
 }

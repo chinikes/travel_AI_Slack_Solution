@@ -1,446 +1,486 @@
 {
-  "name": "[Your Agency] Workflow A - \"The Fetcher\"",
-  "nodes": [
-    {
-      "parameters": {
-        "authentication": "appToken",
-        "resource": "deal",
-        "operation": "search",
-        "limit": 1,
-        "filterGroupsUi": {
-          "filterGroupsValues": [
-            {
-              "filtersUi": {
-                "filterValues": [
-                  {
-                    "propertyName": "group_id",
-                    "value": "={{ $json.group_id }}"
-                  }
+    "name": "[Your Agency] Workflow A - \"The Fetcher\"",
+    "nodes": [
+        {
+            "parameters": {
+                "authentication": "appToken",
+                "resource": "deal",
+                "operation": "search",
+                "limit": 1,
+                "filterGroupsUi": {
+                    "filterGroupsValues": [
+                        {
+                            "filtersUi": {
+                                "filterValues": [
+                                    {
+                                        "propertyName": "group_id",
+                                        "value": "={{ $json.group_id }}"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "additionalFields": {
+                    "properties": [
+                        "lead_guest_name",
+                        "checkin_date",
+                        "destination",
+                        "number_of_people",
+                        "group_id",
+                        "amount"
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.hubspot",
+            "typeVersion": 2.2,
+            "position": [
+                -176,
+                -192
+            ],
+            "id": "b8edef10-e02f-4381-b7d1-99641146adaa",
+            "name": "Search for deals",
+            "alwaysOutputData": true,
+            "credentials": {
+                "hubspotAppToken": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "HubSpot App Token account [Your Agency]"
+                }
+            },
+            "onError": "continueRegularOutput"
+        },
+        {
+            "parameters": {
+                "modelId": {
+                    "__rl": true,
+                    "value": "gpt-5.1",
+                    "mode": "list",
+                    "cachedResultName": "GPT-5.1"
+                },
+                "responses": {
+                    "values": [
+                        {
+                            "role": "system",
+                            "content": "=You are [Your Agency]’s internal Slack assistant.\nConfirm the booking details from the JSON, mention the Group ID, and ask the user to confirm that this is the correct trip. End with: “Once you confirm, I’ll ask a few questions to help route this issue and create the right support tickets.” Make it as short as possible. Also present the information in a neat format. No bold \n\nGroup ID: {{ $json.properties.group_id }}\n\nGuest Name: {{ $json.properties.lead_guest_name }}\nDestination: {{ $json.properties.destination }}\n\nCheck-in Date: {{ $json.properties.checkin_date }}\n\nGroup Size: {{ $json.properties.number_of_people }}\n\nYour Task: Write a short, friendly, one-sentence confirmation message (yes or no) to the support agent. Confirm you found the booking and state the guest's name and location. \n\nGenerate a Slack-friendly message and make it as short as possible. \n"
+                        },
+                        {
+                            "content": "Generate a Slack-friendly message (~120 words)"
+                        }
+                    ]
+                },
+                "builtInTools": {},
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.openAi",
+            "typeVersion": 2.1,
+            "position": [
+                368,
+                -192
+            ],
+            "id": "01507a6d-b4a3-40d8-94c6-6a2b66a01a9a",
+            "name": "Message a model",
+            "credentials": {
+                "openAiApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "OpenAi account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "select": "channel",
+                "channelId": {
+                    "__rl": true,
+                    "value": "={{ $('When Executed by Another Workflow').item.json.channel }}",
+                    "mode": "id"
+                },
+                "text": "={{ $json.output[0].content[0].text }}",
+                "otherOptions": {
+                    "includeLinkToWorkflow": false,
+                    "thread_ts": {
+                        "replyValues": {
+                            "thread_ts": "={{ $('When Executed by Another Workflow').item.json.ts }}"
+                        }
+                    }
+                }
+            },
+            "type": "n8n-nodes-base.slack",
+            "typeVersion": 2.3,
+            "position": [
+                688,
+                -192
+            ],
+            "id": "66e11832-005b-4617-9ff5-c71c6732519d",
+            "name": "Send a message",
+            "webhookId": "[YOUR_WEBHOOK_ID]",
+            "credentials": {
+                "slackApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "Slack account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "dataTableId": {
+                    "__rl": true,
+                    "value": "[YOUR_DATA_TABLE_ID]",
+                    "mode": "list",
+                    "cachedResultName": "conversation_state",
+                    "cachedResultUrl": ""
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "thread_ts": "={{ $json.message.thread_ts }}",
+                        "channel": "={{ $json.channel }}",
+                        "user_id": "={{ $json.message.bot_profile.user_id }}",
+                        "group_id": "={{ $('Search for deals').item.json.properties.group_id }}",
+                        "current_step": "awaiting_deal_confirmation",
+                        "answers": "'{}'::jsonb"
+                    },
+                    "matchingColumns": [],
+                    "schema": [
+                        {
+                            "id": "thread_ts",
+                            "displayName": "thread_ts",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "channel",
+                            "displayName": "channel",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "user_id",
+                            "displayName": "user_id",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "group_id",
+                            "displayName": "group_id",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "current_step",
+                            "displayName": "current_step",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        },
+                        {
+                            "id": "answers",
+                            "displayName": "answers",
+                            "required": false,
+                            "defaultMatch": false,
+                            "display": true,
+                            "type": "string",
+                            "readOnly": false,
+                            "removed": false
+                        }
+                    ],
+                    "attemptToConvertTypes": false,
+                    "convertFieldsToString": false
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.dataTable",
+            "typeVersion": 1,
+            "position": [
+                960,
+                -192
+            ],
+            "id": "145de61f-645d-4665-8a0f-98089d84f9b1",
+            "name": "Insert row"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "433ff339-e0c0-4960-8d64-9ac623a9a266",
+                            "leftValue": "={{ $json.properties.group_id }}",
+                            "rightValue": "",
+                            "operator": {
+                                "type": "string",
+                                "operation": "exists",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                96,
+                -192
+            ],
+            "id": "2d48f7e8-ef31-455e-a63e-e53f13d5e58d",
+            "name": "IF - Confirm Hubspot Match"
+        },
+        {
+            "parameters": {
+                "select": "channel",
+                "channelId": {
+                    "__rl": true,
+                    "value": "={{ $('Parse Command').item.json.channel }}",
+                    "mode": "id"
+                },
+                "text": "=Sorry, but I could not verify the Group ID you provided. Can you check for its validity and try again? ",
+                "otherOptions": {
+                    "includeLinkToWorkflow": false,
+                    "thread_ts": {
+                        "replyValues": {
+                            "thread_ts": "={{ $('Parse Command').item.json.ts }}"
+                        }
+                    }
+                }
+            },
+            "type": "n8n-nodes-base.slack",
+            "typeVersion": 2.3,
+            "position": [
+                384,
+                0
+            ],
+            "id": "3f5ac074-2cc7-4966-b03c-89f421471fab",
+            "name": "Send a message1",
+            "webhookId": "[YOUR_WEBHOOK_ID]",
+            "credentials": {
+                "slackApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "Slack account [Your Agency]"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 2
+                    },
+                    "conditions": [
+                        {
+                            "id": "03e472cf-0165-4f9d-9fa3-3447b2f2e0b2",
+                            "leftValue": "={{ $json.has_group_id }}",
+                            "rightValue": false,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "true",
+                                "singleValue": true
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2.2,
+            "position": [
+                -512,
+                -192
+            ],
+            "id": "a443cd98-0cf7-4954-ba99-90912357b193",
+            "name": "If"
+        },
+        {
+            "parameters": {
+                "jsCode": "// 1. Get text (Handle both direct properties and Webhook structures)\nconst text = $json.text || $json.body?.event?.text || \"\";\n\nlet groupId = null;\n\n// 2. Look for: <@something> <digits>\n// Matches: \"<@YOUR_BOT_ID> 554889\"\nconst m = text.match(/<@[^>]+>\\s+(\\d+)/);\n\nif (m) {\n  groupId = m[1];\n}\n\nreturn [{\n  ...$json, // Keep original data\n  group_id: groupId,\n  has_group_id: !!groupId,\n}];"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -800,
+                -192
+            ],
+            "id": "8c6ac353-46fe-4c0e-9c7c-6720a18ead0e",
+            "name": "Parse Command"
+        },
+        {
+            "parameters": {
+                "inputSource": "passthrough"
+            },
+            "type": "n8n-nodes-base.executeWorkflowTrigger",
+            "typeVersion": 1.1,
+            "position": [
+                -1104,
+                -224
+            ],
+            "id": "7672ad87-21d1-4b33-a4b2-4e6f13ed8aa6",
+            "name": "When Executed by Another Workflow"
+        },
+        {
+            "parameters": {
+                "select": "channel",
+                "channelId": {
+                    "__rl": true,
+                    "value": "={{ $('When Executed by Another Workflow').item.json.channel }}",
+                    "mode": "id"
+                },
+                "text": "I couldn't find a Group ID in your message. Please mention me with a valid Group ID, e.g., @[Your Agency] Bot 1234567",
+                "otherOptions": {
+                    "includeLinkToWorkflow": false,
+                    "thread_ts": {
+                        "replyValues": {
+                            "thread_ts": "={{ $('When Executed by Another Workflow').item.json.ts }}"
+                        }
+                    }
+                }
+            },
+            "type": "n8n-nodes-base.slack",
+            "typeVersion": 2.3,
+            "position": [
+                -256,
+                0
+            ],
+            "id": "missing-groupid-response",
+            "name": "Send No Group ID message",
+            "credentials": {
+                "slackApi": {
+                    "id": "[YOUR_CREDENTIAL_ID]",
+                    "name": "Slack account [Your Agency]"
+                }
+            }
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Search for deals": {
+            "main": [
+                [
+                    {
+                        "node": "IF - Confirm Hubspot Match",
+                        "type": "main",
+                        "index": 0
+                    }
                 ]
-              }
-            }
-          ]
+            ]
         },
-        "additionalFields": {
-          "properties": [
-            "lead_guest_name",
-            "checkin_date",
-            "destination",
-            "number_of_people",
-            "group_id",
-            "amount"
-          ]
+        "Message a model": {
+            "main": [
+                [
+                    {
+                        "node": "Send a message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send a message": {
+            "main": [
+                [
+                    {
+                        "node": "Insert row",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "IF - Confirm Hubspot Match": {
+            "main": [
+                [
+                    {
+                        "node": "Message a model",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Send a message1",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "If": {
+            "main": [
+                [
+                    {
+                        "node": "Search for deals",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Send No Group ID message",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Command": {
+            "main": [
+                [
+                    {
+                        "node": "If",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "When Executed by Another Workflow": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Command",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
         }
-      },
-      "type": "n8n-nodes-base.hubspot",
-      "typeVersion": 2.2,
-      "position": [
-        -176,
-        -192
-      ],
-      "id": "b8edef10-e02f-4381-b7d1-99641146adaa",
-      "name": "Search for deals",
-      "alwaysOutputData": true,
-      "credentials": {
-        "hubspotAppToken": {
-          "id": "JPJ8eEBnNRZMlBtU",
-          "name": "HubSpot App Token account [Your Agency]"
-        }
-      },
-      "onError": "continueRegularOutput"
     },
-    {
-      "parameters": {
-        "modelId": {
-          "__rl": true,
-          "value": "gpt-5.1",
-          "mode": "list",
-          "cachedResultName": "GPT-5.1"
-        },
-        "responses": {
-          "values": [
-            {
-              "role": "system",
-              "content": "=You are [Your Agency]’s internal Slack assistant.\nConfirm the booking details from the JSON, mention the Group ID, and ask the user to confirm that this is the correct trip. End with: “Once you confirm, I’ll ask a few questions to help route this issue and create the right support tickets.” Make it as short as possible. Also present the information in a neat format. No bold \n\nGroup ID: {{ $json.properties.group_id }}\n\nGuest Name: {{ $json.properties.lead_guest_name }}\nDestination: {{ $json.properties.destination }}\n\nCheck-in Date: {{ $json.properties.checkin_date }}\n\nGroup Size: {{ $json.properties.number_of_people }}\n\nYour Task: Write a short, friendly, one-sentence confirmation message (yes or no) to the support agent. Confirm you found the booking and state the guest's name and location. \n\nGenerate a Slack-friendly message and make it as short as possible. \n"
-            },
-            {
-              "content": "Generate a Slack-friendly message (~120 words)"
-            }
-          ]
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 2.1,
-      "position": [
-        368,
-        -192
-      ],
-      "id": "01507a6d-b4a3-40d8-94c6-6a2b66a01a9a",
-      "name": "Message a model",
-      "credentials": {
-        "openAiApi": {
-          "id": "WQE6nDLpplhiCYIF",
-          "name": "OpenAi account [Your Agency]"
-        }
-      }
+    "active": false,
+    "settings": {
+        "executionOrder": "v1"
     },
-    {
-      "parameters": {
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "={{ $('When Executed by Another Workflow').item.json.channel }}",
-          "mode": "id"
-        },
-        "text": "={{ $json.output[0].content[0].text }}",
-        "otherOptions": {
-          "includeLinkToWorkflow": false,
-          "thread_ts": {
-            "replyValues": {
-              "thread_ts": "={{ $('When Executed by Another Workflow').item.json.ts }}"
-            }
-          }
-        }
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [
-        688,
-        -192
-      ],
-      "id": "66e11832-005b-4617-9ff5-c71c6732519d",
-      "name": "Send a message",
-      "webhookId": "0e715042-d13a-425f-bcb0-b0977f4850fb",
-      "credentials": {
-        "slackApi": {
-          "id": "VLmNvog2RDL0uHdq",
-          "name": "Slack account [Your Agency]"
-        }
-      }
+    "versionId": "35f02c13-4a84-4690-84bd-4f6ca1d45744",
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "[YOUR_N8N_INSTANCE_ID]"
     },
-    {
-      "parameters": {
-        "dataTableId": {
-          "__rl": true,
-          "value": "eC1LH9n07OR3RtcZ",
-          "mode": "list",
-          "cachedResultName": "conversation_state",
-          "cachedResultUrl": "/projects/pAa96UOa2sFCNDFA/datatables/eC1LH9n07OR3RtcZ"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "thread_ts": "={{ $json.message.thread_ts }}",
-            "channel": "={{ $json.channel }}",
-            "user_id": "={{ $json.message.bot_profile.user_id }}",
-            "group_id": "={{ $('Search for deals').item.json.properties.group_id }}",
-            "current_step": "awaiting_deal_confirmation",
-            "answers": "'{}'::jsonb"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "thread_ts",
-              "displayName": "thread_ts",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "channel",
-              "displayName": "channel",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "user_id",
-              "displayName": "user_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "group_id",
-              "displayName": "group_id",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "current_step",
-              "displayName": "current_step",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "answers",
-              "displayName": "answers",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1,
-      "position": [
-        960,
-        -192
-      ],
-      "id": "145de61f-645d-4665-8a0f-98089d84f9b1",
-      "name": "Insert row"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "433ff339-e0c0-4960-8d64-9ac623a9a266",
-              "leftValue": "={{ $json.properties.group_id }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "exists",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        96,
-        -192
-      ],
-      "id": "2d48f7e8-ef31-455e-a63e-e53f13d5e58d",
-      "name": "IF - Confirm Hubspot Match"
-    },
-    {
-      "parameters": {
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "={{ $('Parse Command').item.json.channel }}",
-          "mode": "id"
-        },
-        "text": "=Sorry, but I could not verify the Group ID you provided. Can you check for its validity and try again? ",
-        "otherOptions": {
-          "includeLinkToWorkflow": false,
-          "thread_ts": {
-            "replyValues": {
-              "thread_ts": "={{ $('Parse Command').item.json.ts }}"
-            }
-          }
-        }
-      },
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [
-        384,
-        0
-      ],
-      "id": "3f5ac074-2cc7-4966-b03c-89f421471fab",
-      "name": "Send a message1",
-      "webhookId": "0e715042-d13a-425f-bcb0-b0977f4850fb",
-      "credentials": {
-        "slackApi": {
-          "id": "VLmNvog2RDL0uHdq",
-          "name": "Slack account [Your Agency]"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "03e472cf-0165-4f9d-9fa3-3447b2f2e0b2",
-              "leftValue": "={{ $json.has_group_id }}",
-              "rightValue": false,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -512,
-        -192
-      ],
-      "id": "a443cd98-0cf7-4954-ba99-90912357b193",
-      "name": "If"
-    },
-    {
-      "parameters": {
-        "jsCode": "// 1. Get text (Handle both direct properties and Webhook structures)\nconst text = $json.text || $json.body?.event?.text || \"\";\n\nlet groupId = null;\n\n// 2. Look for: <@something> <digits>\n// Matches: \"<@U0A0S9PP6R3> 554889\"\nconst m = text.match(/<@[^>]+>\\s+(\\d+)/);\n\nif (m) {\n  groupId = m[1];\n}\n\nreturn [{\n  ...$json, // Keep original data\n  group_id: groupId,\n  has_group_id: !!groupId,\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -800,
-        -192
-      ],
-      "id": "8c6ac353-46fe-4c0e-9c7c-6720a18ead0e",
-      "name": "Parse Command"
-    },
-    {
-      "parameters": {
-        "inputSource": "passthrough"
-      },
-      "type": "n8n-nodes-base.executeWorkflowTrigger",
-      "typeVersion": 1.1,
-      "position": [
-        -1104,
-        -224
-      ],
-      "id": "7672ad87-21d1-4b33-a4b2-4e6f13ed8aa6",
-      "name": "When Executed by Another Workflow"
-    }
-  ],
-  "pinData": {},
-  "connections": {
-    "Search for deals": {
-      "main": [
-        [
-          {
-            "node": "IF - Confirm Hubspot Match",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Message a model": {
-      "main": [
-        [
-          {
-            "node": "Send a message",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send a message": {
-      "main": [
-        [
-          {
-            "node": "Insert row",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF - Confirm Hubspot Match": {
-      "main": [
-        [
-          {
-            "node": "Message a model",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Send a message1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "If": {
-      "main": [
-        [
-          {
-            "node": "Search for deals",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Command": {
-      "main": [
-        [
-          {
-            "node": "If",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "When Executed by Another Workflow": {
-      "main": [
-        [
-          {
-            "node": "Parse Command",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
-  },
-  "active": false,
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "versionId": "35f02c13-4a84-4690-84bd-4f6ca1d45744",
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "2ece1384e5347fda07017394bf7802b71181b6cdfba2a9f61ec56ad187c46c4c"
-  },
-  "id": "uewEdukDhIftPRIE",
-  "tags": []
+    "id": "[YOUR_WORKFLOW_ID]",
+    "tags": []
 }
