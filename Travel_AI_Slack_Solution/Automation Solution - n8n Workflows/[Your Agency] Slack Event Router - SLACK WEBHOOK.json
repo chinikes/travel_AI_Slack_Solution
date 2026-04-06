@@ -1,5 +1,5 @@
 {
-  "name": "WeSki Slack Event Router - SLACK WEBHOOK",
+  "name": "[Your Agency] Slack Event Router - SLACK WEBHOOK",
   "nodes": [
     {
       "parameters": {
@@ -127,7 +127,7 @@
           "value": "uewEdukDhIftPRIE",
           "mode": "list",
           "cachedResultUrl": "/workflow/uewEdukDhIftPRIE",
-          "cachedResultName": "WeSki Workflow A - \"The Fetcher\""
+          "cachedResultName": "[Your Agency] Workflow A - \"The Fetcher\""
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
@@ -146,7 +146,7 @@
         -224
       ],
       "id": "437600d6-c820-4856-a801-a0ce2dd8fe01",
-      "name": "Call 'WeSki Workflow A - \"The Fetcher\"'"
+      "name": "Call '[Your Agency] Workflow A - \"The Fetcher\"'"
     },
     {
       "parameters": {
@@ -155,7 +155,7 @@
           "value": "hQsfa7dQH2NVdUm4",
           "mode": "list",
           "cachedResultUrl": "/workflow/hQsfa7dQH2NVdUm4",
-          "cachedResultName": "WeSkiBot – Q&A + Jira Creation - MAIN"
+          "cachedResultName": "[YourAgency]Bot – Q&A + Jira Creation - MAIN"
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
@@ -174,7 +174,7 @@
         0
       ],
       "id": "08f8fc1e-2150-4dc0-ad99-b9ff198ba8c6",
-      "name": "Call 'WeSkiBot – Q&A + Jira Creation - MAIN'"
+      "name": "Call '[YourAgency]Bot – Q&A + Jira Creation - MAIN'"
     },
     {
       "parameters": {
@@ -201,7 +201,7 @@
       "credentials": {
         "slackApi": {
           "id": "VLmNvog2RDL0uHdq",
-          "name": "Slack account WeSki"
+          "name": "Slack account [Your Agency]"
         }
       }
     }
@@ -223,21 +223,21 @@
       "main": [
         [
           {
-            "node": "Call 'WeSki Workflow A - \"The Fetcher\"'",
+            "node": "Call '[Your Agency] Workflow A - \"The Fetcher\"'",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Call 'WeSkiBot – Q&A + Jira Creation - MAIN'",
+            "node": "Call '[YourAgency]Bot – Q&A + Jira Creation - MAIN'",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Call 'WeSki Workflow A - \"The Fetcher\"'": {
+    "Call '[Your Agency] Workflow A - \"The Fetcher\"'": {
       "main": [
         []
       ]
@@ -275,7 +275,7 @@
       "updatedAt": "2025-12-06T23:32:15.226Z",
       "createdAt": "2025-12-06T23:32:15.226Z",
       "id": "bczfTmhmIy3pyERj",
-      "name": "WeSki"
+      "name": "[Your Agency]"
     },
     {
       "updatedAt": "2025-12-06T23:32:28.707Z",

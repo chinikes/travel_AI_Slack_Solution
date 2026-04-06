@@ -1,5 +1,5 @@
 {
-  "name": "WeSki Workflow A - \"The Fetcher\"",
+  "name": "[Your Agency] Workflow A - \"The Fetcher\"",
   "nodes": [
     {
       "parameters": {
@@ -44,7 +44,7 @@
       "credentials": {
         "hubspotAppToken": {
           "id": "JPJ8eEBnNRZMlBtU",
-          "name": "HubSpot App Token account WeSki"
+          "name": "HubSpot App Token account [Your Agency]"
         }
       },
       "onError": "continueRegularOutput"
@@ -61,7 +61,7 @@
           "values": [
             {
               "role": "system",
-              "content": "=You are WeSki’s internal Slack assistant.\nConfirm the booking details from the JSON, mention the Group ID, and ask the user to confirm that this is the correct trip. End with: “Once you confirm, I’ll ask a few questions to help route this issue and create the right support tickets.” Make it as short as possible. Also present the information in a neat format. No bold \n\nGroup ID: {{ $json.properties.group_id }}\n\nGuest Name: {{ $json.properties.lead_guest_name }}\nDestination: {{ $json.properties.destination }}\n\nCheck-in Date: {{ $json.properties.checkin_date }}\n\nGroup Size: {{ $json.properties.number_of_people }}\n\nYour Task: Write a short, friendly, one-sentence confirmation message (yes or no) to the support agent. Confirm you found the booking and state the guest's name and location. \n\nGenerate a Slack-friendly message and make it as short as possible. \n"
+              "content": "=You are [Your Agency]’s internal Slack assistant.\nConfirm the booking details from the JSON, mention the Group ID, and ask the user to confirm that this is the correct trip. End with: “Once you confirm, I’ll ask a few questions to help route this issue and create the right support tickets.” Make it as short as possible. Also present the information in a neat format. No bold \n\nGroup ID: {{ $json.properties.group_id }}\n\nGuest Name: {{ $json.properties.lead_guest_name }}\nDestination: {{ $json.properties.destination }}\n\nCheck-in Date: {{ $json.properties.checkin_date }}\n\nGroup Size: {{ $json.properties.number_of_people }}\n\nYour Task: Write a short, friendly, one-sentence confirmation message (yes or no) to the support agent. Confirm you found the booking and state the guest's name and location. \n\nGenerate a Slack-friendly message and make it as short as possible. \n"
             },
             {
               "content": "Generate a Slack-friendly message (~120 words)"
@@ -82,7 +82,7 @@
       "credentials": {
         "openAiApi": {
           "id": "WQE6nDLpplhiCYIF",
-          "name": "OpenAi account WeSki"
+          "name": "OpenAi account [Your Agency]"
         }
       }
     },
@@ -116,7 +116,7 @@
       "credentials": {
         "slackApi": {
           "id": "VLmNvog2RDL0uHdq",
-          "name": "Slack account WeSki"
+          "name": "Slack account [Your Agency]"
         }
       }
     },
@@ -280,7 +280,7 @@
       "credentials": {
         "slackApi": {
           "id": "VLmNvog2RDL0uHdq",
-          "name": "Slack account WeSki"
+          "name": "Slack account [Your Agency]"
         }
       }
     },
