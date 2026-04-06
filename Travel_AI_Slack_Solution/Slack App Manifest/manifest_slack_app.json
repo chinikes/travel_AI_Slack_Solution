@@ -15,6 +15,10 @@
                 "description": "Files an on-trip issue"
             }
         ],
+        "assistant_view": {
+            "assistant_description": "Your travel booking assistant — helps guests with trip issues and support requests",
+            "suggested_prompts": []
+        },
         "slash_commands": [
             {
                 "command": "/ontrip",
