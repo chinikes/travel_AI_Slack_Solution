@@ -1,0 +1,74 @@
+{
+    "display_information": {
+        "name": "[Your Agency] Bot"
+    },
+    "features": {
+        "bot_user": {
+            "display_name": "[Your Agency] Bot",
+            "always_online": true
+        },
+        "shortcuts": [
+            {
+                "name": "File an on-trip issue",
+                "type": "global",
+                "callback_id": "file_ontrip_issue",
+                "description": "Files an on-trip issue"
+            }
+        ],
+        "slash_commands": [
+            {
+                "command": "/ontrip",
+                "url": "https://[your-n8n-instance]/webhook/ontrip-command",
+                "description": "Fetch booking details using Group ID",
+                "usage_hint": "What to type: [Group ID]",
+                "should_escape": false
+            }
+        ]
+    },
+    "oauth_config": {
+        "scopes": {
+            "bot": [
+                "app_mentions:read",
+                "assistant:write",
+                "calls:write",
+                "channels:history",
+                "channels:read",
+                "chat:write",
+                "chat:write.public",
+                "commands",
+                "groups:history",
+                "groups:read",
+                "im:history",
+                "im:read",
+                "im:write",
+                "incoming-webhook",
+                "mpim:history",
+                "mpim:read",
+                "mpim:write",
+                "team:read",
+                "users:read",
+                "users:read.email",
+                "users.profile:read"
+            ]
+        },
+        "pkce_enabled": false
+    },
+    "settings": {
+        "event_subscriptions": {
+            "request_url": "https://[your-n8n-instance]/webhook/[your-webhook-id]/webhook",
+            "bot_events": [
+                "app_mention",
+                "message.channels",
+                "message.groups",
+                "message.im"
+            ]
+        },
+        "interactivity": {
+            "is_enabled": true,
+            "request_url": "https://[your-n8n-instance]/webhook/ontrip-command"
+        },
+        "org_deploy_enabled": false,
+        "socket_mode_enabled": false,
+        "token_rotation_enabled": false
+    }
+}
